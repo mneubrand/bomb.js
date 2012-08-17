@@ -1,6 +1,6 @@
 "use strict";
 
-window.DOMContentLoaded = (function() {
+(function() {
   //Colors
   var darkGreen = "rgb(0,49,0)";
   var lightGreen = "rgb(0,59,0)";
@@ -21,6 +21,9 @@ window.DOMContentLoaded = (function() {
   var face = "rgb(255,204,153)";
   var shade = "rgba(0,0,0,0.2)";
 
+  var requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame ||
+      window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
+
   //Constants
   var width = 19;
   var height = 11;
@@ -31,83 +34,127 @@ window.DOMContentLoaded = (function() {
     WEST:  3
   };
 
+  var fps = 0, fpsFilter = 50;
+
   //Globals
   var ctx;    
   var sprites = new Array();
   var field = new Array(width);
   var player;
+  
+  //Timing
+  var lastUpdate;
+  var cleared;
+  var quarter;
+
+  //Pressed keys
+  var keys = new Array(4);
 
   //Main game loop
   function step() {
-    ctx = document.getElementById('c').getContext('2d');
+    //Calculate FPS
+    var now = Date.now();
+    var thisFrameFPS = 1000 / (now - lastUpdate);
+    fps += (thisFrameFPS - fps) / fpsFilter;
 
-    //Clear canvas
-    ctx.fillStyle = "rgb(50,81,40)";  
-    ctx.fillRect(0, 0, 800, 480);
+    //Update timing
+    lastUpdate = now;
+    cleared = new Array();
+    quarter = Math.floor((lastUpdate%1000)/250);
+ 
+    //Draw sprites and player
+    for(var i=0; i<=sprites.length; i++) {
+      var sprite = i != sprites.length ? sprites[i] : player;
+      
+      clearField(sprite.x, sprite.y);
 
-    //Draw field
-    for(var i=0; i<width; i++) {
-      for(var j=0; j<height; j++) {
-        if(field[i][j]!=null) {
-          ctx.save();
-          ctx.translate(20 + i*40, 40 + j*40);
-          field[i][j].update();
-          ctx.restore();
+      if(sprite.moving) {
+        var move = getOffsetForDirection(sprite.direction);
+        var diff = lastUpdate - sprite.lastMove;
+        //Once we are over halfway done move to the next field
+        if(diff>250 && !sprite.moved) {
+          sprite.x += move[0];
+          sprite.y += move[1];
+          sprite.moved = true;
         }
-      }
-    }
 
-    //Draw sprites
-    for(var i=0; i<sprites.length; i++) {
+        //Clear second tile if we are moving
+        var moveX = move[0] * (sprite.moved ? -1 : 1);
+        var moveY = move[1] * (sprite.moved ? -1 : 1);
+        clearField(sprite.x + moveX, sprite.y + moveY);
+      }
+
+      //Translate canvas to sprite position
       ctx.save();
-      ctx.translate(20 + sprites[i].x*40, 40 + sprites[i].y*40);
-      sprites[i].update();
+      ctx.translate(20 + sprite.x*40, 40 + sprite.y*40);
+
+      //Draw sprite
+      sprite.update();
+
       ctx.restore();
     }
 
-    //Draw player
-    ctx.save();
-    ctx.translate(20 + player.x*40, 40 + player.y*40);
-    player.update();
-    ctx.restore();
-        
     requestAnimationFrame(step);
+  }
+
+  function clearField(x, y) {
+    var index = x*100 + y;
+    if(cleared.indexOf(index)==-1) {
+      //Translate canvas to sprite position
+      ctx.save();
+      ctx.translate(20 + x*40, 40 + y*40);
+
+      //Clear canvas underneath sprite if not already cleared
+      ctx.fillStyle = "rgb(50,81,40)";  
+      ctx.fillRect(0, 0, 40, 40);
+
+      //Redraw field if there is anything
+      if(field[x][y]!=null) {
+       field[x][y].update();
+      } 
+
+      //Prevent clearing twice
+      cleared.push(index);
+
+      ctx.restore();
+    }
   }
 
   /************************/
   /*       Sprites        */
   /************************/
   function Sprite(x, y, draw) {
-    this.frames = 0;
     this.x = x;
     this.y = y;
+    this.initialized = lastUpdate;
     this.draw = draw;
   }
   Sprite.prototype.update = function() {
-    this.frames++;
     this.draw();
-    if(this.frames > 60) {
-      this.frames = 0;
-    }
   }
 
   function Bomb(x, y) {
     Sprite.call(this, x, y);
-    this.countdown = 120;
+    this.scale = 0;
     this.draw = function() {
-      this.countdown--;
       ctx.translate(2,2);
-      var scaleFactor = this.frames > 30 ? this.frames - 30 : this.frames;
-      var scale = 1.0 + 0.1 * (scaleFactor > 15 ? (30-scaleFactor)/30 : scaleFactor/30);
-      ctx.scale(scale, scale);
-      if(this.frames<15 || (this.frames>30 && this.frames<45)) {
-        drawBomb(true);
-      } else {
-        drawBomb(false);
-      }    
-      if(this.countdown == 0) { 
-        sprites.splice(sprites.indexOf(this), 1);
+
+      //Animate bomb scale
+      this.scale++;
+      var x = (this.scale%30)/30; //between 0-29
+      var scaleFactor = 1.0 + 0.1 * (x > 15 ? 30-x : x);
+      ctx.scale(scaleFactor, scaleFactor);
+
+      //Animate spark with 0.25 sec between 2 keyframes
+      drawBomb(quarter == 0 || quarter == 2);
+
+      //Trigger explosion when countdown reaches 0
+      var diff = lastUpdate - this.initialized;
+      if(diff > 2000) { 
+        clear();
+        field[this.x][this.y] = null;
         triggerExplosion(this.x, this.y);
+        sprites.splice(sprites.indexOf(this), 1);
       }
     }    
   }
@@ -115,37 +162,42 @@ window.DOMContentLoaded = (function() {
 
   function BurnedTree(x, y) {
     Sprite.call(this, x, y);
-    this.countdown = 70;
     this.draw = function() {
-      this.countdown--;
-      drawBurnedTree();
-      if(this.countdown == 0) { 
+      if(lastUpdate - this.initialized > 750) { 
+        //Remove tree once countdown reaches 0
+        clear();
         sprites.splice(sprites.indexOf(this), 1);
+      } else {
+        drawBurnedTree();
       }
     }    
   }
   BurnedTree.prototype = new Sprite();
 
-
   function Explosion(x, y, explosion, direction) {
     Sprite.call(this, x, y);
     this.direction = direction;
-    this.start = 0;
     this.angles = new Array();
     this.angles[Direction.NORTH] = 0;
     this.angles[Direction.EAST]  = Math.PI/2;
     this.angles[Direction.SOUTH] = Math.PI;
     this.angles[Direction.WEST]  = Math.PI*1.5;
     this.draw = function() {
-      this.start++;
       rotateBy(this.angles[this.direction]);
+
+      //Mirror horizontally for SOUTH and EAST pieces
       if(this.direction == Direction.SOUTH || this.direction == Direction.WEST) {
         ctx.translate(20,20);
         ctx.scale(-1, 1);
         ctx.translate(-20,-20);
       }
-      explosion(this.start < 10 ? 0 : (this.start < 20 ? 1 : 2));
-      if(this.start == 30) {
+
+      var diff = lastUpdate - this.initialized;
+      if(diff < 450) {
+        explosion(diff < 150 ? 0 : (diff < 300 ? 1 : 2));
+      } else {
+        //Remove explosion once countdown reaches 0
+        clear();
         sprites.splice(sprites.indexOf(this), 1);
       }
     }    
@@ -155,21 +207,62 @@ window.DOMContentLoaded = (function() {
   function Ninja(x, y) {
     Sprite.call(this, x, y);
     this.direction = Direction.SOUTH;
+
+    this.lastMove = 0;
     this.moving = false;
+    this.moved = false;
+
     this.drawings = new Array();
     this.drawings[Direction.NORTH] = drawBackwardNinja;
     this.drawings[Direction.EAST]  = drawRightNinja;
     this.drawings[Direction.SOUTH] = drawForwardNinja;
     this.drawings[Direction.WEST]  = drawLeftNinja;
+
     this.draw = function() {
-      if(!this.moving) {
-        this.drawings[this.direction](true, true);
-      } else {
-        if(this.frames<15 || (this.frames>30 && this.frames<45)) {
-          this.drawings[this.direction](true, false);
-        } else {
-          this.drawings[this.direction](false, true);
+      //Check if and which direction key was pressed last
+      var maximum = 0;
+      var maxIndex = -1;
+      for(var i=0; i<4; i++) {
+        if(keys[i]>maximum) {
+          maximum = keys[i];
+          maxIndex = i;
         }
+      }
+
+      //If we are not moving and a key is pressed trigger a move
+      if(maximum > 0 && !this.moving) {
+        this.direction = maxIndex;
+
+        //Check if it's a legal move
+        var move = getOffsetForDirection(this.direction);
+        if(this.x+move[0] >= 0 && this.x+move[0]<width
+             && this.y+move[1] >= 0 && this.y+move[1]<height
+             && field[this.x+move[0]][this.y+move[1]]==null) {
+          this.lastMove = lastUpdate;         
+          this.moving = true;
+          this.moved = false;
+        }
+      }
+
+      if(this.moving) {
+        var diff = lastUpdate - this.lastMove;
+  
+        //Calculate offset
+        var offset = 40 * diff/500;
+        offset = this.moved ? -40 + offset : offset; // 0->20 -20->0
+        var translateX = this.direction == Direction.EAST ? offset : (this.direction == Direction.WEST ? -offset : 0);
+        var translateY = this.direction == Direction.SOUTH ? offset : (this.direction == Direction.NORTH ? -offset : 0);
+        ctx.translate(translateX, translateY);
+
+        //Animate character with 250ms between keyframes
+        var anim = (quarter==0 || quarter==2);
+        this.drawings[this.direction](anim, !anim);
+
+        if(diff > 500) {
+          this.moving = false;
+        }
+      } else {
+        this.drawings[this.direction](true, true);
       }
     }    
   }
@@ -243,6 +336,12 @@ window.DOMContentLoaded = (function() {
   /************************/
   /*    Sprite drawing    */
   /************************/
+  function clear() {
+    //Clear canvas underneath sprite
+    ctx.fillStyle = "rgb(50,81,40)";  
+    ctx.fillRect(0, 0, 40, 40);
+  }
+
   function drawTree() {
     //Circle shade at the bottom
     ellipse(5, 28, 30, 10, shade);
@@ -452,6 +551,20 @@ window.DOMContentLoaded = (function() {
     }
   }
 
+  /************************/
+  /*        Helper        */
+  /************************/
+  function getOffsetForDirection(direction) {
+    var ret;
+    switch(direction) {
+      case Direction.NORTH: ret = [ 0, -1]; break;
+      case Direction.EAST:  ret = [ 1,  0]; break;
+      case Direction.SOUTH: ret = [ 0,  1]; break;
+      case Direction.WEST:  ret = [-1,  0]; break;
+    }
+    return ret;
+  }
+
   function rotateBy(angle) {
     ctx.translate(20,20);
     ctx.rotate(angle);
@@ -463,109 +576,122 @@ window.DOMContentLoaded = (function() {
   /************************/
   function triggerExplosion(x, y, size) {
     size = size || 2;
-    for(var i=-size; i<=size; i++) {
-      if(x+i>=0 && field[x+i][y]!=null) {
-        sprites.push(new BurnedTree(x+i, y));
-        field[x+i][y]=null;
-      }
-      if(y+i>=0 && field[x][y+i]!=null) {
-        sprites.push(new BurnedTree(x, y+i));
-        field[x][y+i]=null;
+
+    //Active branches of the explosion
+    var active = [ true, true, true, true ];
+
+    for(var i=1; i<=size; i++) {
+
+      for(var j=0; j<4; j++) {
+        if(active[j]) {
+          var move = getOffsetForDirection(j);
+          var coordX = x+(move[0]*i);
+          var coordY = y+(move[1]*i);
+          if(coordX >= 0 && coordX < width
+               && coordY >= 0 && coordY < height) {
+            //Check if we hit something
+            if(field[coordX][coordY]!=null) {
+              if(field[coordX][coordY].draw == drawTree) {
+                //If we hit a tree burn it
+                field[coordX][coordY] = null;
+                sprites.push(new BurnedTree(coordX, coordY));
+              } else if(field[coordX][coordY].draw == drawStone) {
+                //If we hit a stone stop this branch of the explosion
+                active[j] = false;
+              }
+            }
+            //Add explosion sprite if we are still active
+            if(active[j]) {
+              sprites.push(new Explosion(coordX, coordY, i == size ? drawExplosionEnd : drawExplosionArm, j));
+            }
+          }
+        }
       }
 
-      if(i<0) {
-        if(x+i>=0) {
-          sprites.push(new Explosion(x+i, y, i == -size ? drawExplosionEnd : drawExplosionArm, Direction.WEST));
-        }
-        if(y+i>=0) {
-          sprites.push(new Explosion(x, y+i, i == -size ? drawExplosionEnd : drawExplosionArm, Direction.NORTH));
-        }
-      } else if(i>0) {
-        if(x+i>=0) {
-          sprites.push(new Explosion(x+i, y, i == size ? drawExplosionEnd : drawExplosionArm, Direction.EAST));
-        }
-        if(y+i>=0) {
-          sprites.push(new Explosion(x, y+i, i == size ? drawExplosionEnd : drawExplosionArm, Direction.SOUTH));
-        }
-      }
     }
+    //Add explosion center
     sprites.push(new Explosion(x, y, drawExplosionCenter, Direction.NORTH));
   }
 
   /************************/
   /*    Initialization    */
   /************************/
+  window.initBombJs = function() {
+    //Get context
+    ctx = document.getElementById('c').getContext('2d');
 
-  //Set up field
-  for(var i=0; i<width; i++) {
-    field[i] = new Array(height);
-    for(var j=0; j<height; j++) {
-      if(i%2==1 && j%2==1) {
-        field[i][j] = new Sprite(i, j, drawStone);
-      } else if(!(
+    //Clear canvas
+    ctx.fillStyle = "rgb(50,81,40)";  
+    ctx.fillRect(0, 0, 800, 480);
+
+    //Set up field
+    for(var i=0; i<width; i++) {
+      field[i] = new Array(height);
+      for(var j=0; j<height; j++) {
+        if(i%2==1 && j%2==1) {
+          field[i][j] = new Sprite(i, j, drawStone);
+        } else if(!(
                   (i==0 && j==0) || (i==0 && j==1) || (i==1 && j==0) //top left
                   || (i==0 && j==height-1) || (i==0 && j==height-2) || (i==1 && j==height-1) //bottom left
                   || (i==width-1 && j==0) || (i==width-1 && j==1) || (i==width-2 && j==0) //top right
                   || (i==width-1 && j==height-1) || (i==width-1 && j==height-2) || (i==width-2 && j==height-1) //bottom right
-                )) {
-        //Non corner
-        field[i][j] = Math.random() > 0.5 ? new Sprite(i, j, drawTree) : null;
-      } else {
-        field[i][j] = null;
+                  )) {
+          //Non corner
+          field[i][j] = Math.random() > 0.5 ? new Sprite(i, j, drawTree) : null;
+        } else {
+          field[i][j] = null;
+        }
+
+        if(field[i][j]!=null) {
+          ctx.save();
+          ctx.translate(20 + i*40, 40 + j*40);
+          field[i][j].update();
+          ctx.restore();
+        }
       }
     }
-  }
 
-  //Set up player
-  player = new Ninja(0, 0);
+    //Set up player
+    player = new Ninja(0, 0);
 
-  //Set up key listener
-  window.onkeydown = function(e) {
-    switch(e.keyCode) {
-      case 38: //up arrow
-      case 87: //w
-        player.direction = Direction.NORTH;
-        player.moving = true;
-        break;
-      case 39: //right arrow
-      case 68: //d
-        player.direction = Direction.EAST;
-        player.moving = true;
-        break;
-      case 40: //down arrow
-      case 83: //s
-        player.direction = Direction.SOUTH;
-        player.moving = true;
-        break;
-      case 37: //left arrow
-      case 65: //a
-        player.direction = Direction.WEST;
-        player.moving = true;
-        break;
-      case 32: //space
-        field[player.x][player.y] = new Bomb(player.x, player.y);
-        break;
-    }
+    //Set up key listener
+    var keyListener = function(e) {
+      var pressed = e.type == 'keydown';
+      switch(e.keyCode) {
+        case 38: //up arrow
+        case 87: //w
+          keys[Direction.NORTH] = pressed ? e.timeStamp : 0;
+          break;
+        case 39: //right arrow
+        case 68: //d
+          keys[Direction.EAST] = pressed ? e.timeStamp : 0;
+          break;
+        case 40: //down arrow
+        case 83: //s
+          keys[Direction.SOUTH] = pressed ? e.timeStamp : 0;
+          break;
+        case 37: //left arrow
+        case 65: //a
+          keys[Direction.WEST] = pressed ? e.timeStamp : 0;
+          break;
+        case 32: //space
+          sprites.push(new Bomb(player.x, player.y));
+          field[player.x][player.y] = { update: function() {} };
+          break;
+      }
+    };
+    window.onkeyup = keyListener;
+    window.onkeydown = keyListener;
+
+    //Set up game loop
+    requestAnimationFrame(step);
+
+    //Set up FPS counter
+    setInterval(function(){
+      var fpsOut = document.getElementById('fps');
+      fpsOut.innerHTML = fps.toFixed(1) + "fps";
+    }, 1000);
   };
-  window.onkeyup = function(e) {
-    switch(e.keyCode) {
-      case 38: //up arrow
-      case 87: //w
-      case 39: //right arrow
-      case 68: //d
-      case 40: //down arrow
-      case 83: //s
-      case 37: //left arrow
-      case 65: //a
-        player.moving = false;
-        break;
-    }
-    player.moving = false;
-  };
-
-  //Set up game loop
-  var requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame ||
-      window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
-  requestAnimationFrame(step);
-
 })();
+
+window.onload = initBombJs;
