@@ -21,6 +21,8 @@
   var face = "rgb(255,204,153)";
   var shade = "rgba(0,0,0,0.2)";
   var background = "rgb(50,81,40)";
+  var lightBlue = "rgb(122,148,201)";
+  var darkBlue = "rgb(17,42,94)";
 
   var requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame ||
       window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
@@ -89,6 +91,23 @@
         clearField(sprite.x + moveX, sprite.y + moveY);
       }
 
+      //Check for collision with player
+      if(i!=sprites.length
+           && player.x == sprite.x 
+           && player.y == sprite.y) {
+        //If it is an explosion die
+        if(sprite instanceof Explosion) {
+          //TODO implement
+          console.log('die');
+        } else if(sprite.draw == drawBombUpgrade) {
+          bombs++;
+          sprites.splice(i--, 1);
+        } else if(sprite.draw == drawSizeUpgrade) {
+          explosionSize++;
+          sprites.splice(i--, 1);
+        }
+      }
+
       //Translate canvas to sprite position
       ctx.save();
       ctx.translate(20 + sprite.x*40, 40 + sprite.y*40);
@@ -100,9 +119,8 @@
     }
 
     //Draw HUD
-    ctx.fillStyle = background;
-    ctx.fillRect(50,0,50,40);
-    ctx.fillRect(150,0,50,40);
+    rect(50,0,50,40, background);
+    rect(150,0,50,40, background);
 
     ctx.font = "bold 12pt sans-serif";
     ctx.fillStyle = darkGreen;
@@ -123,8 +141,7 @@
       ctx.translate(20 + x*40, 40 + y*40);
 
       //Clear canvas underneath sprite if not already cleared
-      ctx.fillStyle = background;  
-      ctx.fillRect(0, 0, 40, 40);
+      rect(0, 0, 40, 40, background);
 
       //Redraw field if there is anything
       if(field[x][y]!=null) {
@@ -186,6 +203,13 @@
         //Remove tree once countdown reaches 0
         clear();
         sprites.splice(sprites.indexOf(this), 1);
+        //Spawn upgrades
+        var r = Math.random();
+        if(r < 0.1) {
+          sprites.push(new Sprite(x, y, drawBombUpgrade));
+        } else if(r < 0.2) {
+           sprites.push(new Sprite(x, y, drawSizeUpgrade));
+        }
       } else {
         drawBurnedTree();
       }
@@ -358,8 +382,7 @@
   /************************/
   function clear() {
     //Clear canvas underneath sprite
-    ctx.fillStyle = background;  
-    ctx.fillRect(0, 0, 40, 40);
+    rect(0, 0, 40, 40, background);
   }
 
   function drawTree() {
@@ -393,20 +416,6 @@
     path([ [22,21], [27,17], [30,10] ], darkGray, true);
   }
 
-  function drawBomb(sparkSize) {
-    //Circle shade at the bottom	
-    ellipse(12, 26, 20, 8, shade);
-    //Bomb body
-    circle(18, 25, 9, black);
-    //Highlight outline
-    arc(18, 25, 7, Math.PI, Math.PI * 1.5, darkGray, true);
-    //Fuse
-    path([ [18,25], [27,16] ], black, true);
-    //Spark
-    circle(27, 16, sparkSize, orange);
-    circle(27, 16, 1, yellow);
-  }
-
   function drawStone() {
     //Circle shade at the bottom
     ellipse(3, 25, 36, 13, shade);
@@ -434,6 +443,32 @@
     //Spark
     circle(27, 16, bigSpark ? 3 : 2, orange);
     circle(27, 16, 1, yellow);
+  }
+
+  function drawUpgradeBase() {
+    //Background
+    rect(4, 4, 32, 32, darkBlue);
+    rect(6, 6, 28, 28, lightBlue);
+  }
+
+  function drawBombUpgrade() {
+    drawUpgradeBase();
+    //Bomb
+    ctx.save();
+    ctx.translate(0,-3);
+    drawBomb(true);
+    ctx.restore()
+  }
+
+  function drawSizeUpgrade() {
+    drawUpgradeBase();
+    //Explosion
+    ctx.save();
+    ctx.translate(20,20);
+    ctx.scale(0.5,0.5);
+    ctx.translate(-20,-20);
+    drawExplosionCenter(2);
+    ctx.restore()
   }
 
   function drawNinjaBase() {
@@ -639,8 +674,7 @@
     ctx = document.getElementById('c').getContext('2d');
 
     //Clear canvas
-    ctx.fillStyle = background;  
-    ctx.fillRect(0, 0, 800, 480);
+    rect(0, 0, 800, 480, background);
 
     //Set up field
     for(var i=0; i<width; i++) {
