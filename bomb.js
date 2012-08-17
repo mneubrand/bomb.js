@@ -80,9 +80,19 @@
         var diff = lastUpdate - sprite.lastMove;
         //Once we are over halfway done move to the next field
         if(diff>sprite.moveTime/2 && !sprite.moved) {
+          //In case of a moving bomb we move the field
+          if(sprite instanceof Bomb) {
+            field[sprite.x][sprite.y] = null;
+          }
+
           sprite.x += move[0];
           sprite.y += move[1];
           sprite.moved = true;
+
+          //In case of a moving bomb we move the field
+          if(sprite instanceof Bomb) {
+            field[sprite.x][sprite.y] = sprite.field;
+          }
         }
 
         //Clear second tile if we are moving
@@ -99,11 +109,8 @@
         if(sprite instanceof Explosion) {
           //TODO implement
           console.log('die');
-        } else if(sprite.draw == drawBombUpgrade) {
-          bombs++;
-          sprites.splice(i--, 1);
-        } else if(sprite.draw == drawSizeUpgrade) {
-          explosionSize++;
+        } else if(sprite instanceof Upgrade) {
+          handleUpgrade(sprite);
           sprites.splice(i--, 1);
         }
       }
@@ -170,12 +177,39 @@
     return this.draw();
   }
 
-  function Bomb(x, y, bombSprite) {
+  function MovingSprite(x, y, draw) {
+    this.moveTime = 400;
+    this.lastMove = 0;
+    this.moving = false;
+    this.moved = false;
+    Sprite.call(this, x, y, draw);
+  }
+  MovingSprite.prototype = new Sprite();
+
+
+  function Upgrade(x, y, draw) {
+    Sprite.call(this, x, y, draw);
+  }
+  Upgrade.prototype = new Sprite();
+
+  function Bomb(x, y) {
     Sprite.call(this, x, y);
     this.scale = 0;
-    this.bombSprite = bombSprite;
     this.draw = function() {
       ctx.translate(2,2);
+
+      if(this.moving) {
+        //Update position of the field
+        movingOffset(this);
+        //If the move finished see if we can schedule a new move
+        var move = getOffsetForDirection(this.direction);
+        if(!this.moving
+            && field[this.x+move[0]][this.y+move[1]] == null) {
+          this.lastMove = lastUpdate;   
+          this.moving = true;
+          this.moved = false;
+        }
+      }
 
       //Animate bomb scale
       this.scale++;
@@ -187,21 +221,29 @@
       drawBomb(quarter == 0 || quarter == 2);
 
       //Trigger explosion when countdown reaches 0
-      var diff = lastUpdate - this.initialized;
-      if(diff > 2000) {
-        clear();
-        this.explode();
+      if(!player.timer) {
+        var diff = lastUpdate - this.initialized;
+        if(diff > 3000) {
+          this.explode();
+        }
       }
     }
     this.explode = function() {
+      clear();
       plantedBombs--;
       field[this.x][this.y] = null;
       triggerExplosion(this.x, this.y);
-      sprites.splice(sprites.indexOf(this.bombSprite), 1);
+      sprites.splice(sprites.indexOf(this), 1);
       return true;
     }
   }
-  Bomb.prototype = new Sprite();
+  Bomb.prototype = new MovingSprite();
+
+  function BombField(x, y, bomb) {
+    Sprite.call(this, x, y, function() {});
+    this.bomb = bomb;
+  }
+  BombField.prototype = new Sprite();
 
   function BurnedTree(x, y) {
     Sprite.call(this, x, y);
@@ -212,9 +254,20 @@
         //Spawn upgrades
         var r = Math.random();
         if(r < 0.1) {
-          sprites.push(new Sprite(x, y, drawBombUpgrade));
-        } else if(r < 0.2) {
-           sprites.push(new Sprite(x, y, drawSizeUpgrade));
+          r = Math.random();
+          if(r < 0.16) {
+            sprites.push(new Upgrade(x, y, drawBombUpgrade));
+          } else if(r < 0.32) {
+            sprites.push(new Upgrade(x, y, drawSizeUpgrade));
+          } else if(r < 0.49) {
+            sprites.push(new Upgrade(x, y, drawSkatesUpgrade));
+          } else if(r < 0.66) {
+            sprites.push(new Upgrade(x, y, drawNoCollisionUpgrade));
+          } else if(r < 0.82) {
+            sprites.push(new Upgrade(x, y, drawTimerUpgrade));
+          } else {
+            sprites.push(new Upgrade(x, y, drawKickUpgrade));
+          }
         }
         return true;
       } else {
@@ -257,12 +310,6 @@
   function Ninja(x, y) {
     Sprite.call(this, x, y);
     this.direction = Direction.SOUTH;
-
-    this.moveTime = 400;
-    this.lastMove = 0;
-    this.moving = false;
-    this.moved = false;
-
     this.drawings = new Array();
     this.drawings[Direction.NORTH] = drawBackwardNinja;
     this.drawings[Direction.EAST]  = drawRightNinja;
@@ -286,38 +333,57 @@
 
         //Check if it's a legal move
         var move = getOffsetForDirection(this.direction);
-        if(this.x+move[0] >= 0 && this.x+move[0]<width
-             && this.y+move[1] >= 0 && this.y+move[1]<height
-             && field[this.x+move[0]][this.y+move[1]]==null) {
-          this.lastMove = lastUpdate;         
-          this.moving = true;
-          this.moved = false;
+        var coordX = this.x+move[0];
+        var coordY = this.y+move[1];
+        if(coordX >= 0 && coordX<width
+             && coordY >= 0 && coordY<height) {
+          if(field[coordX][coordY]==null //Check if there is nothing in the way
+               || (player.noCollision && field[coordX][coordY].draw != drawStone) // or noCollision mode and no stone
+               || (player.kick && field[coordX][coordY] instanceof BombField) // or kick and bomb
+            ) {
+            this.lastMove = lastUpdate;         
+            this.moving = true;
+            this.moved = false;
+            //Kicked a bomb
+            if(player.kick && field[coordX][coordY] instanceof BombField) {
+              var bomb = field[coordX][coordY].bomb;
+              bomb.direction = player.direction;
+              bomb.lastMove = lastUpdate;   
+              bomb.moving = true;
+              bomb.moved = false;
+            }
+          }
         }
       }
 
       if(this.moving) {
-        var diff = lastUpdate - this.lastMove;
-  
-        //Calculate offset
-        var offset = 40 * diff/this.moveTime;
-        offset = this.moved ? -40 + offset : offset; // 0->20 -20->0
-        var translateX = this.direction == Direction.EAST ? offset : (this.direction == Direction.WEST ? -offset : 0);
-        var translateY = this.direction == Direction.SOUTH ? offset : (this.direction == Direction.NORTH ? -offset : 0);
-        ctx.translate(translateX, translateY);
+        movingOffset(this);
 
         //Animate character with 250ms between keyframes
         var anim = (quarter==0 || quarter==2);
         this.drawings[this.direction](anim, !anim);
 
-        if(diff > this.moveTime) {
-          this.moving = false;
-        }
       } else {
         this.drawings[this.direction](true, true);
       }
     }    
   }
-  Ninja.prototype = new Sprite();
+  Ninja.prototype = new MovingSprite();
+
+  function movingOffset(sprite) {
+    var diff = lastUpdate - sprite.lastMove;
+
+    //Calculate offset
+    var offset = 40 * diff/sprite.moveTime;
+    offset = sprite.moved ? -40 + offset : offset; // 0->20 -20->0
+    var translateX = sprite.direction == Direction.EAST ? offset : (sprite.direction == Direction.WEST ? -offset : 0);
+    var translateY = sprite.direction == Direction.SOUTH ? offset : (sprite.direction == Direction.NORTH ? -offset : 0);
+    ctx.translate(translateX, translateY);
+
+    if(diff > sprite.moveTime) {
+      sprite.moving = false;
+    }
+  }
 
   /************************/
   /*  Drawing functions   */
@@ -424,6 +490,7 @@
   }
 
   function drawStone() {
+    //drawSkatesUpgrade(); return;
     //Circle shade at the bottom
     ellipse(3, 25, 36, 13, shade);
     //Dark outline
@@ -464,7 +531,51 @@
     ctx.save();
     ctx.translate(0,-3);
     drawBomb(true);
-    ctx.restore()
+    ctx.restore();
+  }
+
+  function drawSkatesUpgrade() {
+    drawUpgradeBase();
+    //Ninja
+    ctx.save();
+    ctx.translate(20,20);
+    ctx.scale(0.7,0.7);
+    ctx.translate(-20,-20);
+    ctx.translate(5,0);
+    drawRightNinja(true, true);
+    ctx.restore();    
+    //Lines
+    path([ [10,12], [17,12] ], white, true, 2);
+    path([ [8,17], [15,17] ], white, true, 2);
+    path([ [10,22], [17,22] ], white, true, 2);
+  }
+
+  function drawKickUpgrade() {
+    drawUpgradeBase();
+    //Bomb
+    ctx.save();
+    ctx.translate(20,20);
+    ctx.scale(0.7,0.7);
+    ctx.translate(-20,-20);
+    ctx.translate(7,-3);
+    drawBomb(true);
+    ctx.restore();    
+    //Lines
+    path([ [10,15], [17,15] ], white, true, 2);
+    path([ [8,20], [15,20] ], white, true, 2);
+    path([ [10,25], [17,25] ], white, true, 2);
+  }
+
+  function drawNoCollisionUpgrade() {
+    drawUpgradeBase();
+    //Ninja
+    ctx.save();
+    ctx.translate(20,20);
+    ctx.scale(0.7,0.7);
+    ctx.translate(-20,-20);
+    ctx.globalAlpha=0.5;
+    drawRightNinja(true, true);
+    ctx.restore();    
   }
 
   function drawSizeUpgrade() {
@@ -475,12 +586,29 @@
     ctx.scale(0.5,0.5);
     ctx.translate(-20,-20);
     drawExplosionCenter(2);
-    ctx.restore()
+    ctx.restore();
+  }
+
+  function drawTimerUpgrade() {
+    drawUpgradeBase();
+    //Clock background
+    circle(20, 20, 11, darkGray);
+    circle(20, 20, 10, white);
+    //Clock face
+    ctx.save();
+    for(var i=0; i<6; i++) {
+      rotateBy(Math.PI/6);
+      path([ [20,10], [20,30] ], darkGray, true, 1);
+    }
+    circle(20, 20, 8, white);
+    ctx.restore();
+    //Clock hands
+    path([ [20,10], [20,20], [25,25] ], black, true, 2);
   }
 
   function drawNinjaBase() {
     //Circle shade at the bottom
-    ellipse(12, 32, 16, 8, shade);
+    ellipse(12, 33, 16, 6, shade);
     //Head
     ellipse(10, 4, 20, 16, ninja);
     //Body
@@ -662,9 +790,9 @@
               } else if(field[coordX][coordY].draw == drawStone) {
                 //If we hit a stone stop this branch of the explosion
                 active[j] = false;
-              } else if(field[coordX][coordY] instanceof Bomb) {
+              } else if(field[coordX][coordY] instanceof BombField) {
                 //If we hit a bomb explode it
-                toExplode.push([coordX, coordY]);
+                toExplode.push(field[coordX][coordY].bomb);
               }
             }
             //Add explosion sprite if we are still active
@@ -677,12 +805,36 @@
     }
 
     for(var i=0; i<toExplode.length; i++) {
-      var p = toExplode[i];
-      field[p[0]][p[1]].explode();
+      toExplode[i].explode();
     }
 
     //Add explosion center
     sprites.push(new Explosion(x, y, drawExplosionCenter, Direction.NORTH));
+  }
+
+  function handleUpgrade(sprite) {
+    if(sprite.draw == drawBombUpgrade) {
+      //Increase bomb capacity
+      bombs++;
+    } else if(sprite.draw == drawSizeUpgrade) {
+      //Increase size of explosion up to 5
+      if(explosionSize<5) {
+        explosionSize++;
+      }
+    } else if(sprite.draw == drawSkatesUpgrade) {
+      //Speed up player
+      player.moveTime = 250;
+    }
+    else if(sprite.draw == drawNoCollisionUpgrade) {
+      //Player can walk through bombs and trees
+      player.noCollision = true;
+    } else if(sprite.draw == drawTimerUpgrade) {
+      //Player can detonate bombs
+      player.timer = true;
+    } else if(sprite.draw == drawKickUpgrade) {
+      //Player can kick bombs
+      player.kick = true;
+    }
   }
 
   /************************/
@@ -761,10 +913,22 @@
           break;
         case 32: //space
           if(field[player.x][player.y] == null && plantedBombs < bombs) {
-            var bombSprite = new Sprite(player.x, player.y, function() {});
+            var bombSprite = new Bomb(player.x, player.y);
             sprites.push(bombSprite);
-            field[player.x][player.y] = new Bomb(player.x, player.y, bombSprite);
+            var bombField = new BombField(player.x, player.y, bombSprite) ;
+            bombSprite.field = bombField;
+            field[player.x][player.y] = bombField;
             plantedBombs++;
+          }
+          break;
+        case 86: //v
+          if(player.timer) {
+            //If we have the timer upgrade explode all bombs
+            for(var i=0; i<sprites.length; i++) {
+              if(sprites[i] instanceof Bomb) {
+                sprites[i].explode();
+              }
+            }
           }
           break;
       }
