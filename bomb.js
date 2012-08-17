@@ -20,6 +20,7 @@
   var darkRed = "rgb(160,16,0)";
   var face = "rgb(255,204,153)";
   var shade = "rgba(0,0,0,0.2)";
+  var background = "rgb(50,81,40)";
 
   var requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame ||
       window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
@@ -41,9 +42,12 @@
   var sprites = new Array();
   var field = new Array(width);
   var player;
+  var bombs = 1;
+  var plantedBombs = 0;
+  var explosionSize = 1;
   
   //Timing
-  var lastUpdate;
+  var lastUpdate = 0;
   var cleared;
   var quarter;
 
@@ -52,8 +56,9 @@
 
   //Main game loop
   function step() {
-    //Calculate FPS
     var now = Date.now();
+
+    //Calculate FPS
     var thisFrameFPS = 1000 / (now - lastUpdate);
     fps += (thisFrameFPS - fps) / fpsFilter;
 
@@ -72,7 +77,7 @@
         var move = getOffsetForDirection(sprite.direction);
         var diff = lastUpdate - sprite.lastMove;
         //Once we are over halfway done move to the next field
-        if(diff>250 && !sprite.moved) {
+        if(diff>sprite.moveTime/2 && !sprite.moved) {
           sprite.x += move[0];
           sprite.y += move[1];
           sprite.moved = true;
@@ -94,6 +99,19 @@
       ctx.restore();
     }
 
+    //Draw HUD
+    ctx.fillStyle = background;
+    ctx.fillRect(50,0,50,40);
+    ctx.fillRect(150,0,50,40);
+
+    ctx.font = "bold 12pt sans-serif";
+    ctx.fillStyle = darkGreen;
+    ctx.fillText("x" + bombs, 50, 22);
+    ctx.fillText("x" + explosionSize, 150, 22);
+
+    //Draw border
+    path([ [20,40], [20+width*40, 40], [20+width*40, 39+height*40], [20, 39+height*40], [20,40] ], darkGreen, true, 2);
+
     requestAnimationFrame(step);
   }
 
@@ -105,7 +123,7 @@
       ctx.translate(20 + x*40, 40 + y*40);
 
       //Clear canvas underneath sprite if not already cleared
-      ctx.fillStyle = "rgb(50,81,40)";  
+      ctx.fillStyle = background;  
       ctx.fillRect(0, 0, 40, 40);
 
       //Redraw field if there is anything
@@ -150,8 +168,9 @@
 
       //Trigger explosion when countdown reaches 0
       var diff = lastUpdate - this.initialized;
-      if(diff > 2000) { 
+      if(diff > 2000) {
         clear();
+        plantedBombs--;
         field[this.x][this.y] = null;
         triggerExplosion(this.x, this.y);
         sprites.splice(sprites.indexOf(this), 1);
@@ -208,6 +227,7 @@
     Sprite.call(this, x, y);
     this.direction = Direction.SOUTH;
 
+    this.moveTime = 400;
     this.lastMove = 0;
     this.moving = false;
     this.moved = false;
@@ -248,7 +268,7 @@
         var diff = lastUpdate - this.lastMove;
   
         //Calculate offset
-        var offset = 40 * diff/500;
+        var offset = 40 * diff/this.moveTime;
         offset = this.moved ? -40 + offset : offset; // 0->20 -20->0
         var translateX = this.direction == Direction.EAST ? offset : (this.direction == Direction.WEST ? -offset : 0);
         var translateY = this.direction == Direction.SOUTH ? offset : (this.direction == Direction.NORTH ? -offset : 0);
@@ -258,7 +278,7 @@
         var anim = (quarter==0 || quarter==2);
         this.drawings[this.direction](anim, !anim);
 
-        if(diff > 500) {
+        if(diff > this.moveTime) {
           this.moving = false;
         }
       } else {
@@ -338,7 +358,7 @@
   /************************/
   function clear() {
     //Clear canvas underneath sprite
-    ctx.fillStyle = "rgb(50,81,40)";  
+    ctx.fillStyle = background;  
     ctx.fillRect(0, 0, 40, 40);
   }
 
@@ -574,13 +594,11 @@
   /************************/
   /*      Game logic      */
   /************************/
-  function triggerExplosion(x, y, size) {
-    size = size || 2;
-
+  function triggerExplosion(x, y) {
     //Active branches of the explosion
     var active = [ true, true, true, true ];
 
-    for(var i=1; i<=size; i++) {
+    for(var i=1; i<=explosionSize; i++) {
 
       for(var j=0; j<4; j++) {
         if(active[j]) {
@@ -602,7 +620,7 @@
             }
             //Add explosion sprite if we are still active
             if(active[j]) {
-              sprites.push(new Explosion(coordX, coordY, i == size ? drawExplosionEnd : drawExplosionArm, j));
+              sprites.push(new Explosion(coordX, coordY, i == explosionSize ? drawExplosionEnd : drawExplosionArm, j));
             }
           }
         }
@@ -621,7 +639,7 @@
     ctx = document.getElementById('c').getContext('2d');
 
     //Clear canvas
-    ctx.fillStyle = "rgb(50,81,40)";  
+    ctx.fillStyle = background;  
     ctx.fillRect(0, 0, 800, 480);
 
     //Set up field
@@ -642,6 +660,7 @@
           field[i][j] = null;
         }
 
+        //Draw the field if it's not null
         if(field[i][j]!=null) {
           ctx.save();
           ctx.translate(20 + i*40, 40 + j*40);
@@ -650,6 +669,19 @@
         }
       }
     }
+
+    //Draw HUD
+    ctx.save();
+    ctx.translate(20, 0);
+    ctx.scale(0.7, 0.7);
+    drawBomb(true);
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(120, 5);
+    ctx.scale(0.5, 0.5);
+    drawExplosionCenter(2);
+    ctx.restore();
 
     //Set up player
     player = new Ninja(0, 0);
@@ -675,8 +707,11 @@
           keys[Direction.WEST] = pressed ? e.timeStamp : 0;
           break;
         case 32: //space
-          sprites.push(new Bomb(player.x, player.y));
-          field[player.x][player.y] = { update: function() {} };
+          if(field[player.x][player.y] == null && plantedBombs < bombs) {
+            sprites.push(new Bomb(player.x, player.y));
+            field[player.x][player.y] = { update: function() {} };
+            plantedBombs++;
+          }
           break;
       }
     };
