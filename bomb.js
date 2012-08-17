@@ -113,7 +113,9 @@
       ctx.translate(20 + sprite.x*40, 40 + sprite.y*40);
 
       //Draw sprite
-      sprite.update();
+      if(sprite.update()) {
+        sprites.splice(i--, 1);
+      }
 
       ctx.restore();
     }
@@ -165,12 +167,13 @@
     this.draw = draw;
   }
   Sprite.prototype.update = function() {
-    this.draw();
+    return this.draw();
   }
 
-  function Bomb(x, y) {
+  function Bomb(x, y, bombSprite) {
     Sprite.call(this, x, y);
     this.scale = 0;
+    this.bombSprite = bombSprite;
     this.draw = function() {
       ctx.translate(2,2);
 
@@ -187,12 +190,16 @@
       var diff = lastUpdate - this.initialized;
       if(diff > 2000) {
         clear();
-        plantedBombs--;
-        field[this.x][this.y] = null;
-        triggerExplosion(this.x, this.y);
-        sprites.splice(sprites.indexOf(this), 1);
+        this.explode();
       }
-    }    
+    }
+    this.explode = function() {
+      plantedBombs--;
+      field[this.x][this.y] = null;
+      triggerExplosion(this.x, this.y);
+      sprites.splice(sprites.indexOf(this.bombSprite), 1);
+      return true;
+    }
   }
   Bomb.prototype = new Sprite();
 
@@ -202,7 +209,6 @@
       if(lastUpdate - this.initialized > 750) { 
         //Remove tree once countdown reaches 0
         clear();
-        sprites.splice(sprites.indexOf(this), 1);
         //Spawn upgrades
         var r = Math.random();
         if(r < 0.1) {
@@ -210,6 +216,7 @@
         } else if(r < 0.2) {
            sprites.push(new Sprite(x, y, drawSizeUpgrade));
         }
+        return true;
       } else {
         drawBurnedTree();
       }
@@ -241,7 +248,7 @@
       } else {
         //Remove explosion once countdown reaches 0
         clear();
-        sprites.splice(sprites.indexOf(this), 1);
+        return true;
       }
     }    
   }
@@ -633,13 +640,17 @@
     //Active branches of the explosion
     var active = [ true, true, true, true ];
 
-    for(var i=1; i<=explosionSize; i++) {
+    //Other bombs to set off after all sprites of this explosion have been added
+    var toExplode = new Array();
 
+
+    for(var i=1; i<=explosionSize; i++) {
       for(var j=0; j<4; j++) {
         if(active[j]) {
           var move = getOffsetForDirection(j);
           var coordX = x+(move[0]*i);
           var coordY = y+(move[1]*i);
+          //Check if coordinates are within bounds
           if(coordX >= 0 && coordX < width
                && coordY >= 0 && coordY < height) {
             //Check if we hit something
@@ -651,6 +662,9 @@
               } else if(field[coordX][coordY].draw == drawStone) {
                 //If we hit a stone stop this branch of the explosion
                 active[j] = false;
+              } else if(field[coordX][coordY] instanceof Bomb) {
+                //If we hit a bomb explode it
+                toExplode.push([coordX, coordY]);
               }
             }
             //Add explosion sprite if we are still active
@@ -660,8 +674,13 @@
           }
         }
       }
-
     }
+
+    for(var i=0; i<toExplode.length; i++) {
+      var p = toExplode[i];
+      field[p[0]][p[1]].explode();
+    }
+
     //Add explosion center
     sprites.push(new Explosion(x, y, drawExplosionCenter, Direction.NORTH));
   }
@@ -742,8 +761,9 @@
           break;
         case 32: //space
           if(field[player.x][player.y] == null && plantedBombs < bombs) {
-            sprites.push(new Bomb(player.x, player.y));
-            field[player.x][player.y] = { update: function() {} };
+            var bombSprite = new Sprite(player.x, player.y, function() {});
+            sprites.push(bombSprite);
+            field[player.x][player.y] = new Bomb(player.x, player.y, bombSprite);
             plantedBombs++;
           }
           break;
