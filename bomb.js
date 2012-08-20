@@ -111,9 +111,12 @@
           console.log('die');
         } else if(sprite instanceof Upgrade) {
           handleUpgrade(sprite);
+          field[sprite.x][sprite.y] = null;
           sprites.splice(i--, 1);
         }
       }
+
+      handleInput();
 
       //Translate canvas to sprite position
       ctx.save();
@@ -177,6 +180,7 @@
     return this.draw();
   }
 
+  //Sprite which can move
   function MovingSprite(x, y, draw) {
     this.moveTime = 400;
     this.lastMove = 0;
@@ -186,6 +190,12 @@
   }
   MovingSprite.prototype = new Sprite();
 
+  //Sprite which blocks the field underneath it (e.g. Bomb or Upgrade)
+  function SpriteField(x, y, sprite) {
+    Sprite.call(this, x, y, function() {});
+    this.sprite = sprite;
+  }
+  SpriteField.prototype = new Sprite();
 
   function Upgrade(x, y, draw) {
     Sprite.call(this, x, y, draw);
@@ -201,13 +211,9 @@
       if(this.moving) {
         //Update position of the field
         movingOffset(this);
-        //If the move finished see if we can schedule a new move
-        var move = getOffsetForDirection(this.direction);
-        if(!this.moving
-            && field[this.x+move[0]][this.y+move[1]] == null) {
-          this.lastMove = lastUpdate;   
-          this.moving = true;
-          this.moved = false;
+        if(!this.moving) {
+          //If move just stopped try scheduling another one
+          this.move(this.direction);
         }
       }
 
@@ -236,14 +242,23 @@
       sprites.splice(sprites.indexOf(this), 1);
       return true;
     }
+    this.move = function(direction) {
+      this.direction = direction;
+      //Schedule a new move if we are not moving already
+      var move = getOffsetForDirection(this.direction);
+
+      if(!this.moving && this.x+move[0]
+          && field[this.x+move[0]][this.y+move[1]] == null) {
+        this.lastMove = lastUpdate;   
+        this.moving = true;
+        this.moved = false;
+        //Block the field we are moving to
+        field[this.x+move[0]][this.y+move[1]] = new SpriteField(x, y);
+        return true;
+      }
+    }
   }
   Bomb.prototype = new MovingSprite();
-
-  function BombField(x, y, bomb) {
-    Sprite.call(this, x, y, function() {});
-    this.bomb = bomb;
-  }
-  BombField.prototype = new Sprite();
 
   function BurnedTree(x, y) {
     Sprite.call(this, x, y);
@@ -252,23 +267,7 @@
         //Remove tree once countdown reaches 0
         clear();
         //Spawn upgrades
-        var r = Math.random();
-        if(r < 0.1) {
-          r = Math.random();
-          if(r < 0.16) {
-            sprites.push(new Upgrade(x, y, drawBombUpgrade));
-          } else if(r < 0.32) {
-            sprites.push(new Upgrade(x, y, drawSizeUpgrade));
-          } else if(r < 0.49) {
-            sprites.push(new Upgrade(x, y, drawSkatesUpgrade));
-          } else if(r < 0.66) {
-            sprites.push(new Upgrade(x, y, drawNoCollisionUpgrade));
-          } else if(r < 0.82) {
-            sprites.push(new Upgrade(x, y, drawTimerUpgrade));
-          } else {
-            sprites.push(new Upgrade(x, y, drawKickUpgrade));
-          }
-        }
+        spawnUpgrades(this.x, this.y);
         return true;
       } else {
         drawBurnedTree();
@@ -317,45 +316,6 @@
     this.drawings[Direction.WEST]  = drawLeftNinja;
 
     this.draw = function() {
-      //Check if and which direction key was pressed last
-      var maximum = 0;
-      var maxIndex = -1;
-      for(var i=0; i<4; i++) {
-        if(keys[i]>maximum) {
-          maximum = keys[i];
-          maxIndex = i;
-        }
-      }
-
-      //If we are not moving and a key is pressed trigger a move
-      if(maximum > 0 && !this.moving) {
-        this.direction = maxIndex;
-
-        //Check if it's a legal move
-        var move = getOffsetForDirection(this.direction);
-        var coordX = this.x+move[0];
-        var coordY = this.y+move[1];
-        if(coordX >= 0 && coordX<width
-             && coordY >= 0 && coordY<height) {
-          if(field[coordX][coordY]==null //Check if there is nothing in the way
-               || (player.noCollision && field[coordX][coordY].draw != drawStone) // or noCollision mode and no stone
-               || (player.kick && field[coordX][coordY] instanceof BombField) // or kick and bomb
-            ) {
-            this.lastMove = lastUpdate;         
-            this.moving = true;
-            this.moved = false;
-            //Kicked a bomb
-            if(player.kick && field[coordX][coordY] instanceof BombField) {
-              var bomb = field[coordX][coordY].bomb;
-              bomb.direction = player.direction;
-              bomb.lastMove = lastUpdate;   
-              bomb.moving = true;
-              bomb.moved = false;
-            }
-          }
-        }
-      }
-
       if(this.moving) {
         movingOffset(this);
 
@@ -790,10 +750,17 @@
               } else if(field[coordX][coordY].draw == drawStone) {
                 //If we hit a stone stop this branch of the explosion
                 active[j] = false;
-              } else if(field[coordX][coordY] instanceof BombField) {
-                //If we hit a bomb explode it
-                toExplode.push(field[coordX][coordY].bomb);
-              }
+              } else if(field[coordX][coordY] instanceof SpriteField) {
+                var sprite = field[coordX][coordY].sprite;
+                if(sprite instanceof Bomb) {
+                  //If we hit a bomb explode it
+                  toExplode.push(sprite);
+                } else if(sprite instanceof Upgrade) {
+                  //If we hit an upgrade burn it
+                  sprites.splice(sprites.indexOf(sprite), 1);
+                  field[coordX][coordY] = null;
+                }
+              }  
             }
             //Add explosion sprite if we are still active
             if(active[j]) {
@@ -810,6 +777,32 @@
 
     //Add explosion center
     sprites.push(new Explosion(x, y, drawExplosionCenter, Direction.NORTH));
+  }
+
+  function spawnUpgrades(x, y) {
+    var r = Math.random();
+//    if(r < 0.2) {
+    if(r<1.0) {
+      r = Math.random();
+      var upgrade;
+      if(r < 0.16) {
+        upgrade = new Upgrade(x, y, drawBombUpgrade);
+      } else if(r < 0.32) {
+        upgrade = new Upgrade(x, y, drawSizeUpgrade);
+      } else if(r < 0.49) {
+        upgrade = new Upgrade(x, y, drawSkatesUpgrade);
+      } else if(r < 0.66) {
+        upgrade = new Upgrade(x, y, drawNoCollisionUpgrade);
+      } else if(r < 0.82) {
+        upgrade = new Upgrade(x, y, drawTimerUpgrade);
+      } else {
+        upgrade = new Upgrade(x, y, drawKickUpgrade);
+      }
+      sprites.push(upgrade);
+      var upgradeField = new SpriteField(x, y, upgrade) ;
+      upgrade.field = upgradeField;
+      field[x][y] = upgradeField;
+    }
   }
 
   function handleUpgrade(sprite) {
@@ -834,6 +827,79 @@
     } else if(sprite.draw == drawKickUpgrade) {
       //Player can kick bombs
       player.kick = true;
+    }
+  }
+
+  function plantBomb() {
+    //If there is nothing at the field and we still have bombs left plant a bomb
+    if(field[player.x][player.y] == null && plantedBombs < bombs) {
+      var bombSprite = new Bomb(player.x, player.y);
+      sprites.push(bombSprite);
+      var bombField = new SpriteField(player.x, player.y, bombSprite) ;
+      bombSprite.field = bombField;
+      field[player.x][player.y] = bombField;
+      plantedBombs++;
+    }
+  }
+
+  function triggerBombs() {
+    if(player.timer) {
+      //If we have the timer upgrade explode all bombs
+      for(var i=0; i<sprites.length; i++) {
+        if(sprites[i] instanceof Bomb) {
+          sprites[i].explode();
+        }
+      }
+    }
+  }
+
+  function handleInput() {
+    //Check if and which direction key was pressed last
+    var maximum = 0;
+    var maxIndex = -1;
+    for(var i=0; i<4; i++) {
+      if(keys[i]>maximum) {
+        maximum = keys[i];
+        maxIndex = i;
+      }
+    }
+
+    //If we are not moving and a key is pressed trigger a move
+    if(maximum > 0 && !player.moving) {
+      player.direction = maxIndex;
+
+      //Check if it's a legal move
+      var move = getOffsetForDirection(player.direction);
+      var coordX = player.x+move[0];
+      var coordY = player.y+move[1];
+      if(coordX >= 0 && coordX<width
+           && coordY >= 0 && coordY<height) {
+        if(field[coordX][coordY]==null //Check if there is nothing in the way
+             || (player.noCollision && field[coordX][coordY].draw != drawStone) // or noCollision mode and no stone
+             || (player.kick && field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Bomb) // or kick a bomb
+             || (field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Upgrade) // or upgrade
+          ) {
+          //Kicked a bomb
+          if(player.kick && field[coordX][coordY] instanceof SpriteField) {
+            var bomb = field[coordX][coordY].sprite;
+            if(bomb instanceof Bomb) {
+              if(bomb.move(player.direction)) {
+                player.lastMove = lastUpdate;         
+                player.moving = true;
+                player.moved = false;
+              }
+            } else {
+              player.lastMove = lastUpdate;         
+              player.moving = true;
+              player.moved = false;
+            }
+          } else {
+            player.lastMove = lastUpdate;         
+            player.moving = true;
+            player.moved = false;
+          }
+        }
+      }
     }
   }
 
@@ -912,24 +978,10 @@
           keys[Direction.WEST] = pressed ? e.timeStamp : 0;
           break;
         case 32: //space
-          if(field[player.x][player.y] == null && plantedBombs < bombs) {
-            var bombSprite = new Bomb(player.x, player.y);
-            sprites.push(bombSprite);
-            var bombField = new BombField(player.x, player.y, bombSprite) ;
-            bombSprite.field = bombField;
-            field[player.x][player.y] = bombField;
-            plantedBombs++;
-          }
+          plantBomb();
           break;
         case 86: //v
-          if(player.timer) {
-            //If we have the timer upgrade explode all bombs
-            for(var i=0; i<sprites.length; i++) {
-              if(sprites[i] instanceof Bomb) {
-                sprites[i].explode();
-              }
-            }
-          }
+          triggerBombs();
           break;
       }
     };
