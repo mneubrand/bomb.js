@@ -41,12 +41,13 @@
 
   //Globals
   var ctx;    
-  var sprites = new Array();
+  var sprites;
   var field = new Array(width);
   var player;
-  var bombs = 1;
-  var plantedBombs = 0;
-  var explosionSize = 1;
+  var bombs;
+  var plantedBombs;
+  var explosionSize;
+  var stopped;
   
   //Timing
   var lastUpdate = 0;
@@ -80,7 +81,7 @@
         var diff = lastUpdate - sprite.lastMove;
         //Once we are over halfway done move to the next field
         if(diff>sprite.moveTime/2 && !sprite.moved) {
-          //In case of a moving bomb we move the field
+          //In case of a moving bomb we clear the old field
           if(sprite instanceof Bomb) {
             field[sprite.x][sprite.y] = null;
           }
@@ -107,8 +108,7 @@
            && player.y == sprite.y) {
         //If it is an explosion die
         if(sprite instanceof Explosion) {
-          //TODO implement
-          console.log('die');
+          die();
         } else if(sprite instanceof Upgrade) {
           handleUpgrade(sprite);
           field[sprite.x][sprite.y] = null;
@@ -134,6 +134,7 @@
     rect(50,0,50,40, background);
     rect(150,0,50,40, background);
 
+    ctx.textAlign = "left";
     ctx.font = "bold 12pt sans-serif";
     ctx.fillStyle = darkGreen;
     ctx.fillText("x" + bombs, 50, 22);
@@ -142,7 +143,9 @@
     //Draw border
     path([ [20,40], [20+width*40, 40], [20+width*40, 39+height*40], [20, 39+height*40], [20,40] ], darkGreen, true, 2);
 
-    requestAnimationFrame(step);
+    if(!stopped) {
+      requestAnimationFrame(step);
+    }
   }
 
   function clearField(x, y) {
@@ -167,6 +170,46 @@
     }
   }
 
+  function handleInput() {
+    //Check if and which direction key was pressed last
+    var maximum = 0;
+    var maxIndex = -1;
+    for(var i=0; i<4; i++) {
+      if(keys[i]>maximum) {
+        maximum = keys[i];
+        maxIndex = i;
+      }
+    }
+
+    //If we are not moving and a key is pressed trigger a move
+    if(maximum > 0 && !player.moving) {
+      player.direction = maxIndex;
+      movePlayer();
+    }
+  }
+
+  function die() {
+    if(!player.dead) {
+      player.dead = true;
+
+      //Disable controls
+      window.onkeydown = null;
+      window.onkeyup = null;
+      keys = new Array(4);
+
+      //Stop player movement
+      player.moving = false;
+
+      window.setTimeout(function() {
+        ctx.font = "bold 72pt sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillStyle = darkRed;
+        ctx.fillText("GAME OVER", 400, 240);
+        window.setTimeout(initBombJs, 1500);
+      }, 1500);
+    }
+  }
+
   /************************/
   /*       Sprites        */
   /************************/
@@ -182,11 +225,18 @@
 
   //Sprite which can move
   function MovingSprite(x, y, draw) {
+    Sprite.call(this, x, y, draw);
     this.moveTime = 400;
+
     this.lastMove = 0;
     this.moving = false;
     this.moved = false;
-    Sprite.call(this, x, y, draw);
+
+    this.move = function() {
+      this.lastMove = lastUpdate;         
+      this.moving = true;
+      this.moved = false;
+    }
   }
   MovingSprite.prototype = new Sprite();
 
@@ -196,6 +246,12 @@
     this.sprite = sprite;
   }
   SpriteField.prototype = new Sprite();
+
+  //Sprite which blocks the field underneath it (e.g. Bomb or Upgrade)
+  function PlayerField(x, y, sprite) {
+    SpriteField.call(this, x, y, sprite);
+  }
+  PlayerField.prototype = new SpriteField();
 
   function Upgrade(x, y, draw) {
     Sprite.call(this, x, y, draw);
@@ -213,7 +269,7 @@
         movingOffset(this);
         if(!this.moving) {
           //If move just stopped try scheduling another one
-          this.move(this.direction);
+          moveBomb(this);
         }
       }
 
@@ -242,21 +298,6 @@
       sprites.splice(sprites.indexOf(this), 1);
       return true;
     }
-    this.move = function(direction) {
-      this.direction = direction;
-      //Schedule a new move if we are not moving already
-      var move = getOffsetForDirection(this.direction);
-
-      if(!this.moving && this.x+move[0]
-          && field[this.x+move[0]][this.y+move[1]] == null) {
-        this.lastMove = lastUpdate;   
-        this.moving = true;
-        this.moved = false;
-        //Block the field we are moving to
-        field[this.x+move[0]][this.y+move[1]] = new SpriteField(x, y);
-        return true;
-      }
-    }
   }
   Bomb.prototype = new MovingSprite();
 
@@ -279,13 +320,8 @@
   function Explosion(x, y, explosion, direction) {
     Sprite.call(this, x, y);
     this.direction = direction;
-    this.angles = new Array();
-    this.angles[Direction.NORTH] = 0;
-    this.angles[Direction.EAST]  = Math.PI/2;
-    this.angles[Direction.SOUTH] = Math.PI;
-    this.angles[Direction.WEST]  = Math.PI*1.5;
     this.draw = function() {
-      rotateBy(this.angles[this.direction]);
+      rotateBy(Math.PI * 0.5 * this.direction);
 
       //Mirror horizontally for SOUTH and EAST pieces
       if(this.direction == Direction.SOUTH || this.direction == Direction.WEST) {
@@ -298,7 +334,7 @@
       if(diff < 450) {
         explosion(diff < 150 ? 0 : (diff < 300 ? 1 : 2));
       } else {
-        //Remove explosion once countdown reaches 0
+        //Remove explosion after 450ms expire
         clear();
         return true;
       }
@@ -322,7 +358,9 @@
         //Animate character with 250ms between keyframes
         var anim = (quarter==0 || quarter==2);
         this.drawings[this.direction](anim, !anim);
-
+      } else if(this.dead) {
+        var anim = (quarter==0 || quarter==2);
+        drawDeadNinja(anim, !anim);
       } else {
         this.drawings[this.direction](true, true);
       }
@@ -580,19 +618,19 @@
   function drawVerticalNinja(leftArm, rightArm, leftLeg, rightLeg) {
     drawNinjaBase();
     //Left arm
-    var leftArmEnd = [13, leftArm ? 24 : 23];
+    var leftArmEnd = [13, leftArm ? 27 : 23];
     path([ [16,18], leftArmEnd ], ninja, true);
     circle(leftArmEnd[0], leftArmEnd[1], 2, ninja);
     //Right arm
-    var rightArmEnd = [28, rightArm ? 24 : 23];
-    path([ [24,18], [28,23] ], ninja, true);
+    var rightArmEnd = [28, rightArm ? 27 : 23];
+    path([ [24,18], rightArmEnd ], ninja, true);
     circle(rightArmEnd[0], rightArmEnd[1], 2, ninja);
     //Left leg
-    var leftLegEnd = [17, leftLeg ? 36 : 35];
+    var leftLegEnd = [17, leftLeg ? 37 : 33];
     path([ [18,27], leftLegEnd ], ninja, true);
     circle(leftLegEnd[0], leftLegEnd[1], 2, ninja);
     //Right leg
-    var rightLegEnd = [23, rightLeg ? 36 : 35];
+    var rightLegEnd = [23, rightLeg ? 37 : 33];
     path([ [22,27], rightLegEnd ], ninja, true);
     circle(rightLegEnd[0], rightLegEnd[1], 2, ninja);
   }
@@ -600,13 +638,40 @@
   function drawHorizontalNinja(leftLeg, rightLeg) {
     drawNinjaBase();
     //Left leg
-    var leftLegEnd = [18, leftLeg ? 36 : 35];
+    var leftLegEnd = [18, leftLeg ? 37 : 33];
     path([ [18,27], leftLegEnd ], ninja, true);
     circle(leftLegEnd[0], leftLegEnd[1], 2, ninja);
     //Right leg
-    var rightLegEnd = [22, rightLeg ? 36 : 35];
+    var rightLegEnd = [22, rightLeg ? 37 : 33];
     path([ [22,27], rightLegEnd ], black, true);
     circle(rightLegEnd[0], rightLegEnd[1], 2, ninja);
+  }
+
+  function drawDeadNinja(left, right) {
+    drawNinjaBase();
+    //Left arm
+    var leftArmEnd = left ? [13, 27] : [10, 10];
+    path([ [16,18], leftArmEnd ], ninja, true);
+    circle(leftArmEnd[0], leftArmEnd[1], 2, ninja);
+    //Right arm
+    var rightArmEnd = right ? [28, 27] : [31, 10];
+    path([ [24,18], rightArmEnd ], ninja, true);
+    circle(rightArmEnd[0], rightArmEnd[1], 2, ninja);
+    //Left leg
+    var leftLegEnd = [17, left ? 37 : 33];
+    path([ [18,27], leftLegEnd ], ninja, true);
+    circle(leftLegEnd[0], leftLegEnd[1], 2, ninja);
+    //Right leg
+    var rightLegEnd = [23, right ? 37 : 33];
+    path([ [22,27], rightLegEnd ], ninja, true);
+    circle(rightLegEnd[0], rightLegEnd[1], 2, ninja);	
+    //Face
+    path([ [13,13], [15,9], [25,9], [27,13] ], face);
+    //Eyes
+    path([ [15,11], [19,11] ], black, true, 1);
+    path([ [17,9], [17,13] ], black, true, 1);
+    path([ [21,11], [25,11] ], black, true, 1);
+    path([ [23,9], [23,13] ], black, true, 1);
   }
 
   function drawForwardNinja(left, right) {
@@ -628,7 +693,7 @@
   function drawRightNinja(left, right) {
     drawHorizontalNinja(left, right);	
     //Arm
-    var armEnd = [left ? 26 : 25, 25];
+    var armEnd = [left ? 28 : 25, 25];
     path([ [20,20], armEnd ], ninja, true);
     circle(armEnd[0], armEnd[1], 2, ninja);
     //Face
@@ -832,7 +897,7 @@
 
   function plantBomb() {
     //If there is nothing at the field and we still have bombs left plant a bomb
-    if(field[player.x][player.y] == null && plantedBombs < bombs) {
+    if((field[player.x][player.y] == null || field[player.x][player.y] instanceof PlayerField) && plantedBombs < bombs) {
       var bombSprite = new Bomb(player.x, player.y);
       sprites.push(bombSprite);
       var bombField = new SpriteField(player.x, player.y, bombSprite) ;
@@ -853,60 +918,80 @@
     }
   }
 
-  function handleInput() {
-    //Check if and which direction key was pressed last
-    var maximum = 0;
-    var maxIndex = -1;
-    for(var i=0; i<4; i++) {
-      if(keys[i]>maximum) {
-        maximum = keys[i];
-        maxIndex = i;
-      }
+  function moveBomb(bomb) {
+    //Schedule a new move if we are not moving already
+    var move = getOffsetForDirection(bomb.direction);
+    var coordX = bomb.x+move[0];
+    var coordY = bomb.y+move[1];
+
+    if(coordX >= 0 && coordX<width
+         && coordY >= 0 && coordY<height
+         && !bomb.moving) {
+      if(field[coordX][coordY] == null //Nothing there 
+           || (field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Upgrade)) { //or just an update
+        bomb.move();
+        //Block the field we are moving to
+        field[coordX][coordY] = new SpriteField(coordX,coordY);
+        return true;
+      } 
     }
+    return false;
+  }
 
-    //If we are not moving and a key is pressed trigger a move
-    if(maximum > 0 && !player.moving) {
-      player.direction = maxIndex;
-
-      //Check if it's a legal move
-      var move = getOffsetForDirection(player.direction);
-      var coordX = player.x+move[0];
-      var coordY = player.y+move[1];
-      if(coordX >= 0 && coordX<width
-           && coordY >= 0 && coordY<height) {
-        if(field[coordX][coordY]==null //Check if there is nothing in the way
-             || (player.noCollision && field[coordX][coordY].draw != drawStone) // or noCollision mode and no stone
-             || (player.kick && field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Bomb) // or kick a bomb
-             || (field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Upgrade) // or upgrade
-          ) {
-          //Kicked a bomb
-          if(player.kick && field[coordX][coordY] instanceof SpriteField) {
-            var bomb = field[coordX][coordY].sprite;
-            if(bomb instanceof Bomb) {
-              if(bomb.move(player.direction)) {
-                player.lastMove = lastUpdate;         
-                player.moving = true;
-                player.moved = false;
-              }
-            } else {
-              player.lastMove = lastUpdate;         
-              player.moving = true;
-              player.moved = false;
-            }
-          } else {
-            player.lastMove = lastUpdate;         
-            player.moving = true;
-            player.moved = false;
-          }
+  //Check if it's a legal move
+  function movePlayer() {
+    var move = getOffsetForDirection(player.direction);
+    var coordX = player.x+move[0];
+    var coordY = player.y+move[1];
+    var shouldMove = false;
+    if(coordX >= 0 && coordX<width
+         && coordY >= 0 && coordY<height) {
+      if(field[coordX][coordY]==null) { //Check if there is nothing in the way
+        shouldMove = true;
+      } else if(player.noCollision && field[coordX][coordY].draw != drawStone) { // or noCollision mode and no stone
+        shouldMove = true;
+        //Kicked a bomb
+        if(player.kick && field[coordX][coordY].sprite instanceof Bomb) {
+          var bomb = field[coordX][coordY].sprite;
+          bomb.direction = player.direction;
+          moveBomb(bomb);
+        }
+      } else if(field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Upgrade) { // or upgrade
+        shouldMove = true;
+      } else if(player.kick && field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Bomb) { // or kick a bomb
+          var bomb = field[coordX][coordY].sprite;
+          bomb.direction = player.direction;
+        if(moveBomb(bomb)) {
+          //Only move if we successfully moved the bomb
+          shouldMove = true;       
         }
       }
     }
+
+    if(shouldMove) {
+      //If the old one was blocked unblock it
+      if(field[player.x][player.y] instanceof PlayerField) {
+        field[player.x][player.y] = null;
+      }
+      player.move();
+      //If there is nothing there block the field we are moving to
+      if(field[coordX][coordY] == null) {
+        field[coordX][coordY] = new PlayerField(coordX, coordY);
+      }
+    }  
   }
 
   /************************/
   /*    Initialization    */
   /************************/
   window.initBombJs = function() {
+    //Initialize globals
+    sprites = new Array();
+    bombs = 1;
+    plantedBombs = 0;
+    explosionSize = 1;    
+    stopped = false;
+
     //Get context
     ctx = document.getElementById('c').getContext('2d');
 
