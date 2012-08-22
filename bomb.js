@@ -38,8 +38,6 @@
     WEST:  3
   };
 
-  var fps = 0, fpsFilter = 50;
-
   //Globals
   var ctx;    
   var sprites;
@@ -61,10 +59,6 @@
   //Main game loop
   function step() {
     var now = Date.now();
-
-    //Calculate FPS
-    var thisFrameFPS = 1000 / (now - lastUpdate);
-    fps += (thisFrameFPS - fps) / fpsFilter;
 
     //Update timing
     lastUpdate = now;
@@ -136,7 +130,7 @@
     rect(150,0,50,40, darkGreen);
 
     ctx.textAlign = "left";
-    ctx.font = "bold 12pt sans-serif";
+    ctx.font = "bold 12pt Arial Black";
     ctx.fillStyle = pageBackground;
     ctx.fillText("x" + bombs, 50, 22);
     ctx.fillText("x" + explosionSize, 150, 22);
@@ -220,9 +214,6 @@
       window.onkeyup = null;
       keys = new Array(4);
 
-      //Stop player movement
-      player.moving = false;
-
       window.setTimeout(function() {
         ctx.font = "bold 72pt sans-serif";
         ctx.textAlign = "center";
@@ -282,8 +273,9 @@
   Upgrade.prototype = new Sprite();
 
   function Bomb(x, y) {
-    Sprite.call(this, x, y);
+    MovingSprite.call(this, x, y);
     this.scale = 0;
+    this.moveTime = 250;
     this.draw = function() {
       ctx.translate(2,2);
 
@@ -314,7 +306,6 @@
       }
     }
     this.explode = function() {
-      clear();
       plantedBombs--;
       field[this.x][this.y] = null;
       triggerExplosion(this.x, this.y);
@@ -366,7 +357,7 @@
   Explosion.prototype = new Sprite();
 
   function Ninja(x, y) {
-    Sprite.call(this, x, y);
+    MovingSprite.call(this, x, y);
     this.direction = Direction.SOUTH;
     this.drawings = new Array();
     this.drawings[Direction.NORTH] = drawBackwardNinja;
@@ -375,15 +366,15 @@
     this.drawings[Direction.WEST]  = drawLeftNinja;
 
     this.draw = function() {
-      if(this.moving) {
+      if(this.dead) {
+        var anim = (quarter==0 || quarter==2);
+        drawDeadNinja(anim, !anim);
+      } else if(this.moving) {
         movingOffset(this);
 
         //Animate character with 250ms between keyframes
         var anim = (quarter==0 || quarter==2);
         this.drawings[this.direction](anim, !anim);
-      } else if(this.dead) {
-        var anim = (quarter==0 || quarter==2);
-        drawDeadNinja(anim, !anim);
       } else {
         this.drawings[this.direction](true, true);
       }
@@ -660,12 +651,19 @@
 
   function drawHorizontalNinja(leftLeg, rightLeg) {
     drawNinjaBase();
+    var leftLegEnd, rightLegEnd;
+    if(leftLeg) {
+      leftLegEnd = [18, 37];
+      rightLegEnd = [22, 37];
+    } else if(rightLeg) {
+      leftLegEnd = [15, 35];
+      rightLegEnd = [25, 35];
+    }
+
     //Left leg
-    var leftLegEnd = [18, leftLeg ? 37 : 33];
     path([ [18,27], leftLegEnd ], ninja, true);
     circle(leftLegEnd[0], leftLegEnd[1], 2, ninja);
     //Right leg
-    var rightLegEnd = [22, rightLeg ? 37 : 33];
     path([ [22,27], rightLegEnd ], black, true);
     circle(rightLegEnd[0], rightLegEnd[1], 2, ninja);
   }
@@ -1098,12 +1096,6 @@
 
     //Set up game loop
     requestAnimationFrame(step);
-
-    //Set up FPS counter
-    setInterval(function(){
-      var fpsOut = document.getElementById('fps');
-      fpsOut.innerHTML = fps.toFixed(1) + "fps";
-    }, 1000);
   }
 
   window.init = function() {
