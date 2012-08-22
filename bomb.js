@@ -23,6 +23,7 @@
   var background = "rgb(50,81,40)";
   var lightBlue = "rgb(122,148,201)";
   var darkBlue = "rgb(17,42,94)";
+  var pageBackground = "rgb(246,221,174)";
 
   var requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame ||
       window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
@@ -131,21 +132,43 @@
     }
 
     //Draw HUD
-    rect(50,0,50,40, background);
-    rect(150,0,50,40, background);
+    rect(50,0,50,40, darkGreen);
+    rect(150,0,50,40, darkGreen);
 
     ctx.textAlign = "left";
     ctx.font = "bold 12pt sans-serif";
-    ctx.fillStyle = darkGreen;
+    ctx.fillStyle = pageBackground;
     ctx.fillText("x" + bombs, 50, 22);
     ctx.fillText("x" + explosionSize, 150, 22);
 
     //Draw border
     path([ [20,40], [20+width*40, 40], [20+width*40, 39+height*40], [20, 39+height*40], [20,40] ], darkGreen, true, 2);
 
+    //Draw rounded corners
+    drawCorner(20, 40, 0);
+    drawCorner(740, 40, Math.PI*0.5);
+    drawCorner(740, 440, Math.PI);
+    drawCorner(20, 440, Math.PI*1.5);
+
     if(!stopped) {
       requestAnimationFrame(step);
     }
+  }
+
+  function drawCorner(x, y, angle) {
+    ctx.save();
+    ctx.translate(x, y);
+    rotateBy(angle);
+    var radius = 15;
+    ctx.beginPath();
+    ctx.moveTo(0, radius);
+    ctx.arc(radius, radius, radius, Math.PI, Math.PI * 1.5, false);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(0, radius);
+    ctx.fillStyle = darkGreen;
+    ctx.fill();
+    ctx.closePath();
+    ctx.restore();
   }
 
   function clearField(x, y) {
@@ -984,7 +1007,7 @@
   /************************/
   /*    Initialization    */
   /************************/
-  window.initBombJs = function() {
+  function initBombJs() {
     //Initialize globals
     sprites = new Array();
     bombs = 1;
@@ -996,7 +1019,7 @@
     ctx = document.getElementById('c').getContext('2d');
 
     //Clear canvas
-    rect(0, 0, 800, 480, background);
+    rect(20, 40, 760, 440, background);
 
     //Set up field
     for(var i=0; i<width; i++) {
@@ -1081,7 +1104,11 @@
       var fpsOut = document.getElementById('fps');
       fpsOut.innerHTML = fps.toFixed(1) + "fps";
     }, 1000);
+  }
+
+  window.init = function() {
+    initBombJs();
   };
 })();
 
-window.onload = initBombJs;
+window.onload = init;
