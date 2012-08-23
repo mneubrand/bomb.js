@@ -46,7 +46,6 @@
   var bombs;
   var plantedBombs;
   var explosionSize;
-  var stopped;
   
   //Timing
   var lastUpdate = 0;
@@ -77,7 +76,7 @@
         //Once we are over halfway done move to the next field
         if(diff>sprite.moveTime/2 && !sprite.moved) {
           //In case of a moving bomb we clear the old field
-          if(sprite instanceof Bomb) {
+          if(sprite instanceof Bomb || sprite instanceof Enemy) {
             field[sprite.x][sprite.y] = null;
           }
 
@@ -86,7 +85,7 @@
           sprite.moved = true;
 
           //In case of a moving bomb we move the field
-          if(sprite instanceof Bomb) {
+          if(sprite instanceof Bomb || sprite instanceof Enemy) {
             field[sprite.x][sprite.y] = sprite.field;
           }
         }
@@ -102,7 +101,7 @@
            && player.x == sprite.x 
            && player.y == sprite.y) {
         //If it is an explosion die
-        if(sprite instanceof Explosion) {
+        if(sprite instanceof Explosion || sprite instanceof Enemy) {
           die();
         } else if(sprite instanceof Upgrade) {
           handleUpgrade(sprite);
@@ -121,6 +120,7 @@
       if(sprite.update()) {
         sprites.splice(i--, 1);
       }
+
 
       ctx.restore();
     }
@@ -144,9 +144,15 @@
     drawCorner(740, 440, Math.PI);
     drawCorner(20, 440, Math.PI*1.5);
 
-    if(!stopped) {
-      requestAnimationFrame(step);
+    //Draw game over if we are dead after 1000 ms
+    if(player.dead && lastUpdate - player.dead > 1000) {
+      ctx.font = "bold 72pt Arial Black";
+      ctx.textAlign = "center";
+      ctx.fillStyle = darkRed;
+      ctx.fillText("GAME OVER", 400, 240);
     }
+
+    requestAnimationFrame(step);
   }
 
   function drawCorner(x, y, angle) {
@@ -207,20 +213,14 @@
 
   function die() {
     if(!player.dead) {
-      player.dead = true;
+      player.dead = lastUpdate;
 
       //Disable controls
       window.onkeydown = null;
       window.onkeyup = null;
       keys = new Array(4);
 
-      window.setTimeout(function() {
-        ctx.font = "bold 72pt sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillStyle = darkRed;
-        ctx.fillText("GAME OVER", 400, 240);
-        window.setTimeout(initBombJs, 1500);
-      }, 1500);
+      window.setTimeout(initBombJs, 3000);
     }
   }
 
@@ -256,7 +256,9 @@
 
   //Sprite which blocks the field underneath it (e.g. Bomb or Upgrade)
   function SpriteField(x, y, sprite) {
-    Sprite.call(this, x, y, function() {});
+    Sprite.call(this, x, y, function() { 
+      //rect(0,0,40,40,red); 
+    });
     this.sprite = sprite;
   }
   SpriteField.prototype = new Sprite();
@@ -284,7 +286,7 @@
         movingOffset(this);
         if(!this.moving) {
           //If move just stopped try scheduling another one
-          moveBomb(this);
+          moveSprite(this);
         }
       }
 
@@ -337,11 +339,9 @@
     this.draw = function() {
       rotateBy(Math.PI * 0.5 * this.direction);
 
-      //Mirror horizontally for SOUTH and EAST pieces
+      //Mirror horizontally for SOUTH and WEST pieces
       if(this.direction == Direction.SOUTH || this.direction == Direction.WEST) {
-        ctx.translate(20,20);
-        ctx.scale(-1, 1);
-        ctx.translate(-20,-20);
+        mirrorHorizontally();
       }
 
       var diff = lastUpdate - this.initialized;
@@ -361,26 +361,102 @@
     this.direction = Direction.SOUTH;
     this.drawings = new Array();
     this.drawings[Direction.NORTH] = drawBackwardNinja;
-    this.drawings[Direction.EAST]  = drawRightNinja;
+    this.drawings[Direction.EAST]  = drawHorizontalNinja;
     this.drawings[Direction.SOUTH] = drawForwardNinja;
-    this.drawings[Direction.WEST]  = drawLeftNinja;
+    this.drawings[Direction.WEST]  = drawHorizontalNinja;
 
     this.draw = function() {
+      //Animate character with 250ms between keyframes
+      var anim = (quarter==0 || quarter==2);
+
+      //Mirror horizontally for WEST facing ninja
       if(this.dead) {
-        var anim = (quarter==0 || quarter==2);
         drawDeadNinja(anim, !anim);
       } else if(this.moving) {
         movingOffset(this);
+        if(this.direction == Direction.WEST) {
+          mirrorHorizontally();
+        }
 
-        //Animate character with 250ms between keyframes
-        var anim = (quarter==0 || quarter==2);
         this.drawings[this.direction](anim, !anim);
       } else {
+        if(this.direction == Direction.WEST) {
+          mirrorHorizontally();
+        }
         this.drawings[this.direction](true, true);
       }
     }    
   }
   Ninja.prototype = new MovingSprite();
+
+  function Enemy(x, y) {
+    MovingSprite.call(this, x, y);
+    this.direction = Direction.SOUTH;
+  }
+  Enemy.prototype = new MovingSprite();
+
+  function Golem(x, y) {
+    Enemy.call(this, x, y);
+
+    this.wait = 0;
+//    this.moveTime = 1000;
+
+    this.drawings = new Array();
+    this.drawings[Direction.NORTH] = drawForwardGolem;
+    this.drawings[Direction.EAST]  = drawHorizontalGolem;
+    this.drawings[Direction.SOUTH] = drawForwardGolem;
+    this.drawings[Direction.WEST]  = drawHorizontalGolem;
+
+    this.draw = function() {
+      //Mirror horizontally for WEST facing ninja
+      if(this.dead) {
+        drawDeadGolem(anim, !anim);
+      } else if(this.moving) {
+        movingOffset(this);
+        if(this.direction == Direction.WEST) {
+          mirrorHorizontally();
+        }
+
+        //Animate character with 250ms between keyframes
+        var anim = (quarter==0 || quarter==2);
+        if(anim) {
+          rotateBy(0.1);
+        } else {
+          rotateBy(-0.1);
+        }
+        this.drawings[this.direction]();
+      } else {
+        if(this.direction == Direction.WEST) {
+          mirrorHorizontally();
+        }
+        this.drawings[this.direction]();
+      
+        //Not moving decide if we should wait or move
+        if(lastUpdate - this.wait > this.moveTime) {
+          if(Math.random() < 0.3) {
+            this.wait = lastUpdate;
+          } else {
+            //Find open directions and try moving
+            var open = new Array();
+            for(var i = 0; i < 4; i++) {
+              var move = getOffsetForDirection(i);
+              if(field[this.x+move[0]] != undefined
+                   && (field[this.x+move[0]][this.y+move[1]] == null
+	                   || field[this.x+move[0]][this.y+move[1]] instanceof PlayerField)) {
+                open.push(i);
+              }
+            }
+            if(open.length>0) {
+              //Pick a random direction and go
+              this.direction = open[Math.floor(Math.random()*open.length)];
+              moveSprite(this);
+            }
+          }
+        }
+      }
+    }    
+  }
+  Golem.prototype = new Enemy();
 
   function movingOffset(sprite) {
     var diff = lastUpdate - sprite.lastMove;
@@ -462,6 +538,22 @@
     ctx.closePath();    
   }
 
+  function roundedRect(x, y, w, h, r, fill) {
+    ctx.beginPath();
+    ctx.moveTo(x, y + r);
+    ctx.arc(x + r, y + r, r, Math.PI, Math.PI*1.5);
+    ctx.lineTo(x + w - 2*r, y);
+    ctx.arc(x + w - r, y + r, r, Math.PI*1.5, Math.PI*2);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arc(x + w - r, y + h - r, r, 0, Math.PI*0.5);
+    ctx.lineTo(x + r, y + h);
+    ctx.arc(x + r, y + h - r, r, Math.PI*0.5, Math.PI);
+    ctx.lineTo(x, y + r);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
   /************************/
   /*    Sprite drawing    */
   /************************/
@@ -486,6 +578,57 @@
     //Highlight outline
     arc(10, 15, 5, Math.PI, Math.PI * 1.7, veryLightGreen, true);
     arc(20, 13, 7, Math.PI * 1.1, Math.PI * 1.7, veryLightGreen, true);
+  }
+
+  function drawGolemBase() {
+    //Circle shade at the bottom
+    ellipse(7, 30, 26, 6, shade);
+    //Base shape
+    roundedRect(8, 5, 24, 28, 3, ninja);
+    //Highlight
+//    path([ [10,11], [10,30] ], ninjaHighlight, true);
+//    arc(14, 11, 4, Math.PI, Math.PI * 1.5, ninjaHighlight, true);
+//    path([ [14,7], [28,7] ], ninjaHighlight, true);
+  }
+
+  function drawForwardGolem() {
+    drawGolemBase();
+    //Eyes
+    arc(15, 12, 4, Math.PI * 0.1, Math.PI * 1.1, black);
+    circle(15, 14, 1, red);
+    arc(25, 12, 4, Math.PI * 1.9, Math.PI * 0.9, black);
+    circle(25, 14, 1, red);
+    //Mouth
+    roundedRect(10, 23, 20, 8, 2, black);
+    //Teeth
+    for(var i=0; i<8; i++) {
+      path([ [12,23], [16,23], [14,26] ], white);
+      ctx.translate(4,0);
+      if(i==3) {
+        ctx.translate(-16, 14);
+        mirrorVertically();
+      }
+    }
+  }
+
+  function drawHorizontalGolem() {
+    drawGolemBase();
+    //Eyes
+    arc(25, 12, 4, Math.PI * 0.1, Math.PI * 1.1, black);
+    circle(26, 14, 1, red);
+    //Mouth
+    roundedRect(18, 23, 10, 8, 2, black);
+    rect(22, 23, 10, 8, black);
+    //Teeth
+    ctx.translate(7,0);
+    for(var i=0; i<6; i++) {
+      path([ [12,23], [16,23], [14,26] ], white);
+      ctx.translate(4,0);
+      if(i==2) {
+        ctx.translate(-12, 14);
+        mirrorVertically();
+      }
+    }
   }
 
   function drawBurnedTree() {
@@ -554,7 +697,7 @@
     ctx.scale(0.7,0.7);
     ctx.translate(-20,-20);
     ctx.translate(5,0);
-    drawRightNinja(true, true);
+    drawHorizontalNinja(true, true);
     ctx.restore();    
     //Lines
     path([ [10,12], [17,12] ], white, true, 2);
@@ -586,7 +729,7 @@
     ctx.scale(0.7,0.7);
     ctx.translate(-20,-20);
     ctx.globalAlpha=0.5;
-    drawRightNinja(true, true);
+    drawHorizontalNinja(true, true);
     ctx.restore();    
   }
 
@@ -640,32 +783,39 @@
     path([ [24,18], rightArmEnd ], ninja, true);
     circle(rightArmEnd[0], rightArmEnd[1], 2, ninja);
     //Left leg
-    var leftLegEnd = [17, leftLeg ? 37 : 33];
+    var leftLegEnd = [17, leftLeg ? 36 : 33];
     path([ [18,27], leftLegEnd ], ninja, true);
     circle(leftLegEnd[0], leftLegEnd[1], 2, ninja);
     //Right leg
-    var rightLegEnd = [23, rightLeg ? 37 : 33];
+    var rightLegEnd = [23, rightLeg ? 36 : 33];
     path([ [22,27], rightLegEnd ], ninja, true);
     circle(rightLegEnd[0], rightLegEnd[1], 2, ninja);
   }
 
-  function drawHorizontalNinja(leftLeg, rightLeg) {
+  function drawHorizontalNinja(left, right) {
     drawNinjaBase();
     var leftLegEnd, rightLegEnd;
-    if(leftLeg) {
-      leftLegEnd = [18, 37];
-      rightLegEnd = [22, 37];
-    } else if(rightLeg) {
+    if(left) {
+      leftLegEnd = [18, 36];
+      rightLegEnd = [22, 36];
+    } else if(right) {
       leftLegEnd = [15, 35];
       rightLegEnd = [25, 35];
     }
-
     //Left leg
     path([ [18,27], leftLegEnd ], ninja, true);
     circle(leftLegEnd[0], leftLegEnd[1], 2, ninja);
     //Right leg
     path([ [22,27], rightLegEnd ], black, true);
     circle(rightLegEnd[0], rightLegEnd[1], 2, ninja);
+    //Arm
+    var armEnd = [left ? 28 : 25, 25];
+    path([ [20,20], armEnd ], ninja, true);
+    circle(armEnd[0], armEnd[1], 2, ninja);
+    //Face
+    path([ [20,13], [20,9], [25,9], [27,13] ], face);
+    //Eyes
+    arc(23, 10, 2, Math.PI * 1.9, Math.PI * 0.9, black);
   }
 
   function drawDeadNinja(left, right) {
@@ -709,30 +859,6 @@
     //Knot
     path([ [20,8], [17,11] ], red, true, 1);
     path([ [20,8], [23,11] ], red, true, 1);
-  }
-
-  function drawRightNinja(left, right) {
-    drawHorizontalNinja(left, right);	
-    //Arm
-    var armEnd = [left ? 28 : 25, 25];
-    path([ [20,20], armEnd ], ninja, true);
-    circle(armEnd[0], armEnd[1], 2, ninja);
-    //Face
-    path([ [20,13], [20,9], [25,9], [27,13] ], face);
-    //Eyes
-    arc(23, 10, 2, Math.PI * 1.9, Math.PI * 0.9, black);
-  }
-
-  function drawLeftNinja(left, right) {
-    drawHorizontalNinja(left, right);	
-    //Arm
-    var armEnd = [left ? 14 : 15, 25];
-    path([ [20,20], armEnd ], ninja, true);
-    circle(armEnd[0], armEnd[1], 2, ninja);
-    //Face
-    path([ [13,13], [15,9], [20,9], [20,13] ], face);
-    //Eyes
-    arc(17, 10, 2, Math.PI * 0.1, Math.PI * 1.1, black);
   }
 
   function drawExplosionArm(stage) {
@@ -807,6 +933,18 @@
     ctx.translate(-20,-20);
   }
 
+  function mirrorHorizontally() {
+    ctx.translate(20,20);
+    ctx.scale(-1,1);
+    ctx.translate(-20,-20);
+  }
+
+  function mirrorVertically() {
+    ctx.translate(20,20);
+    ctx.scale(1,-1);
+    ctx.translate(-20,-20);
+  }
+
   /************************/
   /*      Game logic      */
   /************************/
@@ -845,6 +983,9 @@
                   //If we hit an upgrade burn it
                   sprites.splice(sprites.indexOf(sprite), 1);
                   field[coordX][coordY] = null;
+                } else if(sprite instanceof Enemy) {
+                  //If we hit an enemy burn him
+                  sprite.dead = lastUpdate;
                 }
               }  
             }
@@ -939,18 +1080,19 @@
     }
   }
 
-  function moveBomb(bomb) {
+  function moveSprite(sprite) {
     //Schedule a new move if we are not moving already
-    var move = getOffsetForDirection(bomb.direction);
-    var coordX = bomb.x+move[0];
-    var coordY = bomb.y+move[1];
+    var move = getOffsetForDirection(sprite.direction);
+    var coordX = sprite.x+move[0];
+    var coordY = sprite.y+move[1];
 
     if(coordX >= 0 && coordX<width
          && coordY >= 0 && coordY<height
-         && !bomb.moving) {
+         && !sprite.moving) {
       if(field[coordX][coordY] == null //Nothing there 
-           || (field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Upgrade)) { //or just an update
-        bomb.move();
+           || (field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Upgrade) //or an update
+           || (!(sprite instanceof Bomb) && field[coordX][coordY] instanceof PlayerField)) { //or player and we are not a bomb
+        sprite.move();
         //Block the field we are moving to
         field[coordX][coordY] = new SpriteField(coordX,coordY);
         return true;
@@ -975,16 +1117,20 @@
         if(player.kick && field[coordX][coordY].sprite instanceof Bomb) {
           var bomb = field[coordX][coordY].sprite;
           bomb.direction = player.direction;
-          moveBomb(bomb);
+          moveSprite(bomb);
         }
-      } else if(field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Upgrade) { // or upgrade
-        shouldMove = true;
-      } else if(player.kick && field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Bomb) { // or kick a bomb
+      } else if(field[coordX][coordY] instanceof SpriteField) {
+        if(field[coordX][coordY].sprite instanceof Upgrade) { // Upgrade
+          shouldMove = true;
+        } else if(field[coordX][coordY].sprite instanceof Bomb && player.kick) { // or kick a bomb
           var bomb = field[coordX][coordY].sprite;
           bomb.direction = player.direction;
-        if(moveBomb(bomb)) {
-          //Only move if we successfully moved the bomb
-          shouldMove = true;       
+          if(moveSprite(bomb)) {
+            //Only move if we successfully moved the bomb
+            shouldMove = true;       
+          }
+        } else if(field[coordX][coordY].sprite instanceof Enemy) { // or enemy
+          shouldMove = true;
         }
       }
     }
@@ -1011,7 +1157,6 @@
     bombs = 1;
     plantedBombs = 0;
     explosionSize = 1;    
-    stopped = false;
 
     //Get context
     ctx = document.getElementById('c').getContext('2d');
@@ -1032,7 +1177,18 @@
                   || (i==width-1 && j==height-1) || (i==width-1 && j==height-2) || (i==width-2 && j==height-1) //bottom right
                   )) {
           //Non corner
-          field[i][j] = Math.random() > 0.5 ? new Sprite(i, j, drawTree) : null;
+          var rand = Math.random();
+          if(rand < 0.1) {
+            var golem = new Golem(i, j);
+            sprites.push(golem);
+            var golemField = new SpriteField(golem.x, golem.y, golem);
+            field[i][j] = golemField;
+            golem.field = golemField;
+          } else if(rand < 0.5) {
+            field[i][j] = new Sprite(i, j, drawTree);
+          } else {
+            field[i][j] = null;
+          }
         } else {
           field[i][j] = null;
         }
