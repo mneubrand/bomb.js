@@ -41,6 +41,7 @@
   //Globals
   var ctx;    
   var sprites;
+  var enemies;
   var field = new Array(width);
   var player;
   var bombs;
@@ -65,12 +66,12 @@
     quarter = Math.floor((lastUpdate%1000)/250);
  
     //Draw sprites and player
-    for(var i=0; i<=sprites.length; i++) {
-      var sprite = i != sprites.length ? sprites[i] : player;
+    for(var i=0; i<=sprites.length + enemies.length; i++) {
+      var sprite = i < sprites.length ? sprites[i] : (i < sprites.length + enemies.length ? enemies[i - sprites.length] : player);
       
       clearField(sprite.x, sprite.y);
 
-      if(sprite.moving) {
+      if(sprite.moving || sprite.dead) {
         var move = getOffsetForDirection(sprite.direction);
         var diff = lastUpdate - sprite.lastMove;
         //Once we are over halfway done move to the next field
@@ -97,7 +98,7 @@
       }
 
       //Check for collision with player
-      if(i!=sprites.length
+      if(!(sprite instanceof Ninja)
            && player.x == sprite.x 
            && player.y == sprite.y) {
         //If it is an explosion die
@@ -107,6 +108,16 @@
           handleUpgrade(sprite);
           field[sprite.x][sprite.y] = null;
           sprites.splice(i--, 1);
+        }
+      }
+
+      //Check for collision between explosion and enemy
+      if(sprite instanceof Explosion) {
+        for(var j=0; j<enemies.length; j++) {
+          if(enemies[j].x == sprite.x 
+               && enemies[j].y == sprite.y) {
+            enemies[j].die();
+          }
         }
       }
 
@@ -214,6 +225,7 @@
   function die() {
     if(!player.dead) {
       player.dead = lastUpdate;
+      player.moving = false;
 
       //Disable controls
       window.onkeydown = null;
@@ -232,6 +244,7 @@
     this.y = y;
     this.initialized = lastUpdate;
     this.draw = draw;
+    this.offset = [0, 0];
   }
   Sprite.prototype.update = function() {
     return this.draw();
@@ -317,21 +330,29 @@
   }
   Bomb.prototype = new MovingSprite();
 
-  function BurnedTree(x, y) {
+  function DisappearingSprite(x, y, draw) {
     Sprite.call(this, x, y);
     this.draw = function() {
+      if(this.clear) {
+        ctx.translate(this.clear[0]*40, this.clear[1]*40);
+        clear();
+        ctx.translate(-this.clear[0]*40, -this.clear[1]*40);
+      }
       if(lastUpdate - this.initialized > 750) { 
-        //Remove tree once countdown reaches 0
+        //Remove sprite
         clear();
         //Spawn upgrades
-        spawnUpgrades(this.x, this.y);
+        if(draw == drawBurnedTree) {
+          spawnUpgrades(this.x, this.y);
+        }
         return true;
       } else {
-        drawBurnedTree();
+        ctx.translate(this.offset[0], this.offset[1]);        
+        draw();
       }
     }    
   }
-  BurnedTree.prototype = new Sprite();
+  DisappearingSprite.prototype = new Sprite();
 
   function Explosion(x, y, explosion, direction) {
     Sprite.call(this, x, y);
@@ -371,6 +392,7 @@
 
       //Mirror horizontally for WEST facing ninja
       if(this.dead) {
+        ctx.translate(this.offset[0], this.offset[1]);
         drawDeadNinja(anim, !anim);
       } else if(this.moving) {
         movingOffset(this);
@@ -392,6 +414,22 @@
   function Enemy(x, y) {
     MovingSprite.call(this, x, y);
     this.direction = Direction.SOUTH;
+    this.die = function() {
+      var disappear = new DisappearingSprite(this.x, this.y, this instanceof Golem ? drawDeadGolem : null);
+      disappear.offset = this.offset;
+      sprites.push(disappear);
+      enemies.splice(enemies.indexOf(this), 1);
+      field[this.x][this.y] = null;
+      if(this.moving) {
+        var move = getOffsetForDirection(this.direction);
+        if(!this.moved) {
+          field[this.x+move[0]][this.y+move[1]] = null;
+          disappear.clear = [ move[0], move[1] ];
+        } else {
+          disappear.clear = [ -move[0], -move[1] ];
+        }
+      }
+    }
   }
   Enemy.prototype = new MovingSprite();
 
@@ -399,7 +437,7 @@
     Enemy.call(this, x, y);
 
     this.wait = 0;
-//    this.moveTime = 1000;
+    this.moveTime = 700;
 
     this.drawings = new Array();
     this.drawings[Direction.NORTH] = drawForwardGolem;
@@ -409,9 +447,7 @@
 
     this.draw = function() {
       //Mirror horizontally for WEST facing ninja
-      if(this.dead) {
-        drawDeadGolem(anim, !anim);
-      } else if(this.moving) {
+      if(this.moving) {
         movingOffset(this);
         if(this.direction == Direction.WEST) {
           mirrorHorizontally();
@@ -470,6 +506,8 @@
 
     if(diff > sprite.moveTime) {
       sprite.moving = false;
+    } else {
+      sprite.offset = [ translateX, translateY ];
     }
   }
 
@@ -585,10 +623,6 @@
     ellipse(7, 30, 26, 6, shade);
     //Base shape
     roundedRect(8, 5, 24, 28, 3, ninja);
-    //Highlight
-//    path([ [10,11], [10,30] ], ninjaHighlight, true);
-//    arc(14, 11, 4, Math.PI, Math.PI * 1.5, ninjaHighlight, true);
-//    path([ [14,7], [28,7] ], ninjaHighlight, true);
   }
 
   function drawForwardGolem() {
@@ -609,6 +643,45 @@
         mirrorVertically();
       }
     }
+  }
+
+  function drawGhost() {
+    //Circle shade at the bottom
+    ellipse(6, 33, 28, 6, shade);
+    //Bottom
+    circle(11, 30, 3, white);
+    circle(17, 30, 3, white);
+    circle(23, 30, 3, white);
+    circle(29, 30, 3, white);
+    //Top
+    ellipse(8, 6, 24, 16, white);
+    //Middle
+    rect(8, 14, 24, 16, white);
+    //Eyes
+    circle(14, 16, 4, shade);
+    circle(26, 16, 4, shade);
+    circle(14, 17, 2, black);
+    circle(26, 17, 2, black);
+    //Mouth
+    ellipse(14, 24, 12, 4, mediumGray);
+  }
+
+  function drawDeadGolem() {
+    drawGolemBase();
+    //Eyes
+    circle(15, 14, 4, white);
+    circle(15, 14, 2, black);
+    circle(25, 14, 3, white);
+    circle(25, 14, 1, black);
+    //Mouth
+    roundedRect(10, 23, 20, 8, 2, black);
+    //Teeth
+    path([ [12,23], [16,23], [14,26] ], white);
+    ctx.translate(12,0);
+    path([ [12,23], [16,23], [14,26] ], white);
+    ctx.translate(-4, 14);
+    mirrorVertically();
+    path([ [12,23], [16,23], [14,26] ], white);
   }
 
   function drawHorizontalGolem() {
@@ -970,7 +1043,7 @@
               if(field[coordX][coordY].draw == drawTree) {
                 //If we hit a tree burn it
                 field[coordX][coordY] = null;
-                sprites.push(new BurnedTree(coordX, coordY));
+                sprites.push(new DisappearingSprite(coordX, coordY, drawBurnedTree));
               } else if(field[coordX][coordY].draw == drawStone) {
                 //If we hit a stone stop this branch of the explosion
                 active[j] = false;
@@ -985,7 +1058,7 @@
                   field[coordX][coordY] = null;
                 } else if(sprite instanceof Enemy) {
                   //If we hit an enemy burn him
-                  sprite.dead = lastUpdate;
+                  sprite.die();
                 }
               }  
             }
@@ -1154,6 +1227,7 @@
   function initBombJs() {
     //Initialize globals
     sprites = new Array();
+    enemies = new Array();
     bombs = 1;
     plantedBombs = 0;
     explosionSize = 1;    
@@ -1180,7 +1254,7 @@
           var rand = Math.random();
           if(rand < 0.1) {
             var golem = new Golem(i, j);
-            sprites.push(golem);
+            enemies.push(golem);
             var golemField = new SpriteField(golem.x, golem.y, golem);
             field[i][j] = golemField;
             golem.field = golemField;
