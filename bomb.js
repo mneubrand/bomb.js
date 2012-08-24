@@ -39,6 +39,8 @@
     WEST:  3
   };
 
+  var selectorBomb;
+
   //Globals
   var ctx;    
   var sprites;
@@ -1398,7 +1400,6 @@
 
     //Set up player
     player = new Ninja(0, 0);
-    player.kick = true;
 
     //Set up key listener
     var keyListener = function(e) {
@@ -1435,6 +1436,70 @@
     requestAnimationFrame(step);
   }
 
+  function initMenu() {
+    //Get context
+    ctx = document.getElementById('c').getContext('2d');
+
+    ctx.save();
+
+    //Clear canvas
+    if(selectorBomb != null) {
+      rect(20, 40, 760, 440, background);
+    }
+
+    //Draw rounded corners
+    drawCorner(20, 40, 0);
+    drawCorner(740, 40, Math.PI*0.5);
+    drawCorner(740, 440, Math.PI);
+    drawCorner(20, 440, Math.PI*1.5);
+
+    //Draw text
+    ctx.textAlign = "left";
+    ctx.font = "bold 12pt Arial Black";
+    ctx.fillStyle = pageBackground;
+
+    ctx.fillText("Single Player", 9*40, 5*40-10);
+    ctx.fillText("2-Player Coop", 9*40, 6*40-10);
+    ctx.fillText("2-Player Versus", 9*40, 7*40-10);
+
+    //Draw selector bomb
+    if(selectorBomb != null) {
+      ctx.translate(selectorBomb.x*40, selectorBomb.y*40);
+      drawBomb();
+      ctx.restore();
+      requestAnimationFrame(initMenu);
+    }
+  }
+
+  function selectEntry() {
+    for(var i=1; i<=2; i++) {
+      for(var j=0; j<4; j++) {
+        var move = getOffsetForDirection(j);
+        var coordX = selectorBomb.x+(move[0]*i);
+        var coordY = selectorBomb.y+(move[1]*i);
+        console.log('explosion at ' + coordX + ', ' + coordY);
+
+        ctx.save();
+        ctx.translate(coordX*40, coordY*40);
+        rotateBy(Math.PI * 0.5 * j);
+        if(j == 2 || j == 3) {
+          mirrorHorizontally();
+        }
+        i == 2 ? drawExplosionEnd(2) : drawExplosionArm(2);
+        ctx.restore();
+      }
+    }
+
+    ctx.save();
+    ctx.translate(selectorBomb.x*40, selectorBomb.y*40);
+    drawExplosionCenter(2);
+    ctx.restore();
+
+    selectorBomb = null;
+    explosionSound.play();
+    window.setTimeout(initBombJs, 500);
+  }
+
   function initializeSound(synth, params) {
     var soundURL = synth.getWave(params);
     var player = new Audio();
@@ -1451,7 +1516,28 @@
     plantSound = initializeSound(synth, "0,,0.0589,,0.2623,0.269,,-0.3668,,,,,,0.5726,,,,,1,,,,,0.5");
     upgradeSound = initializeSound(synth, "0,,0.2524,,0.442,0.18,,0.4331,,,,,,0.2551,,0.5655,,,1,,,,,0.5");
 
-    initBombJs();
+    //Set up key listener
+    var keyListener = function(e) {
+      switch(e.keyCode) {
+        case 38: //up arrow
+        case 87: //w
+          keys[Direction.NORTH] = selectorBomb.y--;
+          if(selectorBomb.y < 4) { selectorBomb.y = 6; }
+          break;
+        case 40: //down arrow
+        case 83: //s
+          keys[Direction.SOUTH] = selectorBomb.y++;
+          if(selectorBomb.y > 6) { selectorBomb.y = 4; }
+          break;
+        case 32: //space
+          selectEntry();
+          break;
+      }
+    };
+    window.onkeyup = keyListener;
+
+    selectorBomb = new Sprite(7, 4);
+    initMenu();
   };
 })();
 
