@@ -17,6 +17,7 @@
   var lightYellow = "rgb(255,255,140)";
   var orange = "rgb(212,85,0)";
   var red = "rgb(255,0,0)";
+  var lightRed = "rgb(255,170,170)";
   var darkRed = "rgb(160,16,0)";
   var face = "rgb(255,204,153)";
   var shade = "rgba(0,0,0,0.2)";
@@ -83,7 +84,7 @@
         //Once we are over halfway done move to the next field
         if(diff>sprite.moveTime/2 && !sprite.moved) {
           //In case of a moving piece reset the old field
-          if(sprite instanceof Bomb || sprite instanceof Enemy) {
+          if(sprite instanceof Bomb || sprite instanceof Golem) {
             field[sprite.x][sprite.y] = null;
           }
 
@@ -92,7 +93,7 @@
           sprite.moved = true;
 
           //In case of a moving bomb we move the field
-          if(sprite instanceof Bomb || sprite instanceof Enemy) {
+          if(sprite instanceof Bomb || sprite instanceof Golem) {
             field[sprite.x][sprite.y] = sprite.field;
           }
         }
@@ -284,13 +285,13 @@
   //Sprite which blocks the field underneath it (e.g. Bomb or Upgrade)
   function SpriteField(x, y, sprite) {
     Sprite.call(this, x, y, function() { 
-      if(sprite instanceof Bomb) {
+      /*if(sprite instanceof Bomb) {
        rect(0,0,40,40,darkGreen);
       } else if(sprite instanceof Upgrade) {
        rect(0,0,40,40,red); 
       } else {
        rect(0,0,40,40,yellow); 
-      }
+      }*/
     });
     this.sprite = sprite;
   }
@@ -439,7 +440,7 @@
     MovingSprite.call(this, x, y);
     this.direction = Direction.SOUTH;
     this.die = function() {
-      var disappear = new DisappearingSprite(this.x, this.y, this instanceof Golem ? drawDeadGolem : null);
+      var disappear = new DisappearingSprite(this.x, this.y, this.drawDead);
       disappear.offset = this.offset;
       sprites.push(disappear);
       enemies.splice(enemies.indexOf(this), 1);
@@ -462,6 +463,7 @@
 
     this.wait = 0;
     this.moveTime = 700;
+    this.drawDead = drawDeadGolem;
 
     this.drawings = new Array();
     this.drawings[Direction.NORTH] = drawForwardGolem;
@@ -470,7 +472,7 @@
     this.drawings[Direction.WEST]  = drawHorizontalGolem;
 
     this.draw = function() {
-      //Mirror horizontally for WEST facing ninja
+      //Mirror horizontally for WEST facing golem
       if(this.moving) {
         movingOffset(this);
         if(this.direction == Direction.WEST) {
@@ -517,6 +519,59 @@
     }    
   }
   Golem.prototype = new Enemy();
+
+  function Ghost(x, y) {
+    Enemy.call(this, x, y);
+
+    this.moveTime = 500;
+    this.drawDead =  drawDeadGhost;
+
+    this.drawings = new Array();
+    this.drawings[Direction.NORTH] = drawGhost;
+    this.drawings[Direction.EAST]  = drawGhost;
+    this.drawings[Direction.SOUTH] = drawGhost;
+    this.drawings[Direction.WEST]  = drawGhost;
+
+    this.draw = function() {
+      //Mirror horizontally for WEST facing ninja
+      if(this.moving) {
+        movingOffset(this);
+
+        //Animate character with 250ms between keyframes
+        if(quarter == 0) {
+          ctx.translate(0, 0);
+        } else if(quarter == 1) {
+          ctx.translate(2, -2);
+        } else if(quarter == 2) {
+          ctx.translate(0, -4);
+        } else {
+          ctx.translate(-2, -2);
+        }
+        var anim = (quarter==0 || quarter==2);
+        this.drawings[this.direction](anim);
+      } else {
+        this.drawings[this.direction](true);
+   
+        var diffX = this.x - player.x;
+        var diffY = this.y - player.y;
+        //Check if player is near
+        if(Math.abs(diffX) < 3 && diffX != 0 && diffY == 0) {
+          //Home in on player
+          this.direction = diffX < 0 ? Direction.EAST : Direction.WEST;
+          moveSprite(this);          
+        } else if(Math.abs(diffY) < 3 && diffY != 0 && diffX == 0) {
+          //Home in on player
+          this.direction = diffY < 0 ? Direction.SOUTH : Direction.NORTH;
+          moveSprite(this);          
+        } else {
+          //Pick a random direction and go
+          this.direction = Math.floor(Math.random()*4);
+          moveSprite(this);
+        }
+      }
+    }    
+  }
+  Ghost.prototype = new Enemy();
 
   function movingOffset(sprite) {
     var diff = lastUpdate - sprite.lastMove;
@@ -669,7 +724,26 @@
     }
   }
 
-  function drawGhost() {
+  function drawDeadGhost() {
+    //Circle shade at the bottom
+    ellipse(6, 33, 28, 6, shade);
+    //Bottom
+    circle(11, 30, 3, lightRed);
+    circle(17, 30, 3, lightRed);
+    circle(23, 30, 3, lightRed);
+    circle(29, 30, 3, lightRed);
+    //Top
+    ellipse(8, 6, 24, 16, lightRed);
+    //Middle
+    rect(8, 14, 24, 16, lightRed);
+    //Eyes
+    path([ [12,12], [16,16] ], black, true);
+    path([ [16,12], [12,16] ], black, true);
+    path([ [24,12], [28,16] ], black, true);
+    path([ [28,12], [24,16] ], black, true);
+  }
+
+  function drawGhost(anim) {
     //Circle shade at the bottom
     ellipse(6, 33, 28, 6, shade);
     //Bottom
@@ -687,7 +761,11 @@
     circle(14, 17, 2, black);
     circle(26, 17, 2, black);
     //Mouth
-    ellipse(14, 24, 12, 4, mediumGray);
+    if(anim) {
+      ellipse(14, 24, 12, 4, mediumGray);
+    } else {
+      ellipse(15, 23, 10, 6, mediumGray);
+    }
   }
 
   function drawDeadGolem() {
@@ -1182,12 +1260,18 @@
     if(coordX >= 0 && coordX<width
          && coordY >= 0 && coordY<height
          && !sprite.moving) {
-      if(field[coordX][coordY] == null //Nothing there 
-           || (!(sprite instanceof Bomb) && field[coordX][coordY] instanceof PlayerField)) { //or player and we are not a bomb
+      if(field[coordX][coordY] == null) {
+        //Nothing there 
         sprite.move();
         field[coordX][coordY] = new SpriteField(coordX,coordY);
+      } else if(!(sprite instanceof Bomb) && field[coordX][coordY] instanceof PlayerField) { //or player and we are not a bomb
+        sprite.move();
         return true;
-      } 
+      } else if (sprite instanceof Ghost 
+                   && field[coordX][coordY].draw != drawStone 
+                   && !(field[coordX][coordY] instanceof PlayerField)) { //or ghost and not stone or other enemy
+        sprite.move();
+      }
     }
     return false;
   }
@@ -1268,12 +1352,18 @@
                   )) {
           //Non corner
           var rand = Math.random();
-          if(rand < 0.1) {
+          if(rand < 0.05) {
             var golem = new Golem(i, j);
             enemies.push(golem);
             var golemField = new SpriteField(golem.x, golem.y, golem);
             field[i][j] = golemField;
             golem.field = golemField;
+          } else if(rand < 0.07) {
+            var ghost = new Ghost(i, j);
+            enemies.push(ghost);
+            var ghostField = new SpriteField(ghost.x, ghost.y, ghost);
+            field[i][j] = ghostField;
+            ghost.field = ghostField;
           } else if(rand < 0.5) {
             field[i][j] = new Sprite(i, j, drawTree);
           } else {
