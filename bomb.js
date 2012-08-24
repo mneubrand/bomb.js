@@ -77,8 +77,8 @@
       
       clearField(sprite.x, sprite.y);
 
-        var diff = lastUpdate - sprite.lastMove;
-      if(sprite.moving || sprite.dead) {
+      var diff = lastUpdate - sprite.lastMove;
+      if(sprite.moving || (sprite.dead && sprite.wasMoving)) {
         var move = getOffsetForDirection(sprite.direction);
         //Once we are over halfway done move to the next field
         if(diff>sprite.moveTime/2 && !sprite.moved) {
@@ -108,7 +108,7 @@
            && player.x == sprite.x 
            && player.y == sprite.y) {
         //If it is an explosion die
-        if(sprite instanceof Explosion || sprite instanceof Enemy) {
+        if(sprite instanceof Enemy || sprite instanceof Explosion) {
           die();
         } else if(sprite instanceof Upgrade) {
           handleUpgrade(sprite);
@@ -117,12 +117,19 @@
         }
       }
 
-      //Check for collision between explosion and enemy
+      //Check for collision between explosion and enemy or upgrade
       if(sprite instanceof Explosion) {
         for(var j=0; j<enemies.length; j++) {
           if(enemies[j].x == sprite.x 
                && enemies[j].y == sprite.y) {
             enemies[j].die();
+          }
+        }
+        for(var j=0; j<sprites.length; j++) {
+          if(sprites[j] instanceof Upgrade
+               && sprites[j].x == sprite.x 
+               && sprites[j].y == sprite.y) {
+            sprites.splice(j, 1);
           }
         }
       }
@@ -232,6 +239,7 @@
     if(!player.dead) {
       player.dead = lastUpdate;
       player.moving = false;
+      player.wasMoving = player.wasMoving;
 
       //Disable controls
       window.onkeydown = null;
@@ -288,7 +296,7 @@
   }
   SpriteField.prototype = new Sprite();
 
-  //Sprite which blocks the field underneath it (e.g. Bomb or Upgrade)
+  //Sprite which blocks the field underneath player
   function PlayerField(x, y, sprite) {
     SpriteField.call(this, x, y, sprite);
   }
@@ -405,6 +413,7 @@
 
       //Mirror horizontally for WEST facing ninja
       if(this.dead) {
+        movingSound.pause();
         ctx.translate(this.offset[0], this.offset[1]);
         drawDeadNinja(anim, !anim);
       } else if(this.moving) {
@@ -733,7 +742,6 @@
   }
 
   function drawStone() {
-    //drawSkatesUpgrade(); return;
     //Circle shade at the bottom
     ellipse(3, 25, 36, 13, shade);
     //Dark outline
@@ -1066,14 +1074,9 @@
                 active[j] = false;
               } else if(field[coordX][coordY] instanceof SpriteField) {
                 var sprite = field[coordX][coordY].sprite;
-                console.log(sprite);
                 if(sprite instanceof Bomb) {
                   //If we hit a bomb explode it
                   toExplode.push(sprite);
-                } else if(sprite instanceof Upgrade) {
-                  //If we hit an upgrade burn it
-                  sprites.splice(sprites.indexOf(sprite), 1);
-                  field[coordX][coordY] = null;
                 } else if(sprite instanceof Enemy) {
                   //If we hit an enemy burn him
                   sprite.die();
@@ -1117,9 +1120,6 @@
         upgrade = new Upgrade(x, y, drawKickUpgrade);
       }
       sprites.push(upgrade);
-      var upgradeField = new SpriteField(x, y, upgrade) ;
-      upgrade.field = upgradeField;
-      field[x][y] = upgradeField;
     }
   }
 
@@ -1183,7 +1183,6 @@
          && coordY >= 0 && coordY<height
          && !sprite.moving) {
       if(field[coordX][coordY] == null //Nothing there 
-           || (field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Upgrade) //or an update
            || (!(sprite instanceof Bomb) && field[coordX][coordY] instanceof PlayerField)) { //or player and we are not a bomb
         sprite.move();
         field[coordX][coordY] = new SpriteField(coordX,coordY);
@@ -1212,9 +1211,7 @@
           moveSprite(bomb);
         }
       } else if(field[coordX][coordY] instanceof SpriteField) {
-        if(field[coordX][coordY].sprite instanceof Upgrade) { // Upgrade
-          shouldMove = true;
-        } else if(field[coordX][coordY].sprite instanceof Bomb && player.kick) { // or kick a bomb
+        if(field[coordX][coordY].sprite instanceof Bomb && player.kick) { // or kick a bomb
           var bomb = field[coordX][coordY].sprite;
           bomb.direction = player.direction;
           if(moveSprite(bomb)) {
