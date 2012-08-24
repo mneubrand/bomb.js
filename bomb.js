@@ -56,6 +56,12 @@
   //Pressed keys
   var keys = new Array(4);
 
+  //Sounds
+  var explosionSound
+  var plantSound;
+  var upgradeSound;
+  var movingSound;
+
   //Main game loop
   function step() {
     var now = Date.now();
@@ -71,12 +77,12 @@
       
       clearField(sprite.x, sprite.y);
 
+        var diff = lastUpdate - sprite.lastMove;
       if(sprite.moving || sprite.dead) {
         var move = getOffsetForDirection(sprite.direction);
-        var diff = lastUpdate - sprite.lastMove;
         //Once we are over halfway done move to the next field
         if(diff>sprite.moveTime/2 && !sprite.moved) {
-          //In case of a moving bomb we clear the old field
+          //In case of a moving piece reset the old field
           if(sprite instanceof Bomb || sprite instanceof Enemy) {
             field[sprite.x][sprite.y] = null;
           }
@@ -270,7 +276,13 @@
   //Sprite which blocks the field underneath it (e.g. Bomb or Upgrade)
   function SpriteField(x, y, sprite) {
     Sprite.call(this, x, y, function() { 
-      //rect(0,0,40,40,red); 
+      if(sprite instanceof Bomb) {
+       rect(0,0,40,40,darkGreen);
+      } else if(sprite instanceof Upgrade) {
+       rect(0,0,40,40,red); 
+      } else {
+       rect(0,0,40,40,yellow); 
+      }
     });
     this.sprite = sprite;
   }
@@ -321,6 +333,7 @@
       }
     }
     this.explode = function() {
+      explosionSound.play();
       plantedBombs--;
       field[this.x][this.y] = null;
       triggerExplosion(this.x, this.y);
@@ -395,6 +408,7 @@
         ctx.translate(this.offset[0], this.offset[1]);
         drawDeadNinja(anim, !anim);
       } else if(this.moving) {
+        movingSound.play();
         movingOffset(this);
         if(this.direction == Direction.WEST) {
           mirrorHorizontally();
@@ -402,6 +416,7 @@
 
         this.drawings[this.direction](anim, !anim);
       } else {
+        movingSound.pause();
         if(this.direction == Direction.WEST) {
           mirrorHorizontally();
         }
@@ -1044,11 +1059,14 @@
                 //If we hit a tree burn it
                 field[coordX][coordY] = null;
                 sprites.push(new DisappearingSprite(coordX, coordY, drawBurnedTree));
+                sprites.push(new Explosion(coordX, coordY, drawExplosionEnd, j));
+                active[j] = false;
               } else if(field[coordX][coordY].draw == drawStone) {
                 //If we hit a stone stop this branch of the explosion
                 active[j] = false;
               } else if(field[coordX][coordY] instanceof SpriteField) {
                 var sprite = field[coordX][coordY].sprite;
+                console.log(sprite);
                 if(sprite instanceof Bomb) {
                   //If we hit a bomb explode it
                   toExplode.push(sprite);
@@ -1106,6 +1124,7 @@
   }
 
   function handleUpgrade(sprite) {
+    upgradeSound.play();
     if(sprite.draw == drawBombUpgrade) {
       //Increase bomb capacity
       bombs++;
@@ -1133,6 +1152,7 @@
   function plantBomb() {
     //If there is nothing at the field and we still have bombs left plant a bomb
     if((field[player.x][player.y] == null || field[player.x][player.y] instanceof PlayerField) && plantedBombs < bombs) {
+      plantSound.play();
       var bombSprite = new Bomb(player.x, player.y);
       sprites.push(bombSprite);
       var bombField = new SpriteField(player.x, player.y, bombSprite) ;
@@ -1166,7 +1186,6 @@
            || (field[coordX][coordY] instanceof SpriteField && field[coordX][coordY].sprite instanceof Upgrade) //or an update
            || (!(sprite instanceof Bomb) && field[coordX][coordY] instanceof PlayerField)) { //or player and we are not a bomb
         sprite.move();
-        //Block the field we are moving to
         field[coordX][coordY] = new SpriteField(coordX,coordY);
         return true;
       } 
@@ -1292,6 +1311,7 @@
 
     //Set up player
     player = new Ninja(0, 0);
+    player.kick = true;
 
     //Set up key listener
     var keyListener = function(e) {
@@ -1328,7 +1348,22 @@
     requestAnimationFrame(step);
   }
 
+  function initializeSound(synth, params) {
+    var soundURL = synth.getWave(params);
+    var player = new Audio();
+    player.src = soundURL;
+    return player;
+  }
+
   window.init = function() {
+    //Initialize sounds
+    var synth = new SfxrSynth();
+    movingSound = initializeSound(synth, "0,0.09,0.18,0.2,0.2907,0.0996,,-0.82,-0.8945,-0.466,0.04,0.02,0.22,0.84,-0.0038,0.5484,-0.0768,0.4759,0.9999,0.7727,0.2592,0.0002,-0.986,0.4");
+    movingSound.loop = true;
+    explosionSound = initializeSound(synth, "3,,0.1572,0.3281,0.422,0.0723,,0.0993,,,,,,,,0.4485,,,1,,,,,0.5");
+    plantSound = initializeSound(synth, "0,,0.0589,,0.2623,0.269,,-0.3668,,,,,,0.5726,,,,,1,,,,,0.5");
+    upgradeSound = initializeSound(synth, "0,,0.2524,,0.442,0.18,,0.4331,,,,,,0.2551,,0.5655,,,1,,,,,0.5");
+
     initBombJs();
   };
 })();

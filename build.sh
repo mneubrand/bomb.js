@@ -7,10 +7,11 @@ mkdir out
 # Compress JavaScript and HTML
 java -jar compiler.jar --compilation_level ADVANCED_OPTIMIZATIONS --js bomb.js --js_output_file out/bomb.js
 java -jar htmlcompressor-1.5.3.jar --type html -o out/index.html index.html
+cp jsfxr.min.js out/jsfxr.min.js
 
 # Zip resources
 cd out
-zip -q -9 package.zip index.html bomb.js
+zip -q -9 package.zip index.html bomb.js jsfxr.min.js
 
 # Check file size
 BYTES=`du -b package.zip | sed 's/\s.*//'`
