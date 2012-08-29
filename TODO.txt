@@ -1,4 +1,2 @@
-- Enemies
-- Audio
 - Hot seat
 - Multiplayer

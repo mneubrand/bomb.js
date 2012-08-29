@@ -38,10 +38,18 @@
     SOUTH: 2,
     WEST:  3
   };
+  var Mode = {
+    SINGLE_PLAYER: 0,
+    MULTI_VERSUS:  1,
+    MULTI_COOP: 2
+  };
 
+  //Menu
   var selectorBomb;
+  var controlsDisplayed = false;
 
   //Globals
+  var gameMode;
   var ctx;    
   var sprites;
   var enemies;
@@ -57,6 +65,7 @@
   var quarter;
 
   //Pressed keys
+  var keyListener;
   var keys = new Array(4);
 
   //Sounds
@@ -301,7 +310,10 @@
 
   //Sprite which blocks the field underneath player
   function PlayerField(x, y, sprite) {
-    SpriteField.call(this, x, y, sprite);
+    this.sprite = sprite;
+    Sprite.call(this, x, y, function() { 
+       rect(0,0,40,40,darkBlue);
+    });
   }
   PlayerField.prototype = new SpriteField();
 
@@ -525,8 +537,9 @@
   function Ghost(x, y) {
     Enemy.call(this, x, y);
 
-    this.moveTime = 500;
+    this.moveTime = 600;
     this.drawDead =  drawDeadGhost;
+    this.steps = 0;
 
     this.drawings = new Array();
     this.drawings[Direction.NORTH] = drawGhost;
@@ -560,16 +573,19 @@
         if(Math.abs(diffX) < 3 && diffX != 0 && diffY == 0) {
           //Home in on player
           this.direction = diffX < 0 ? Direction.EAST : Direction.WEST;
-          moveSprite(this);          
         } else if(Math.abs(diffY) < 3 && diffY != 0 && diffX == 0) {
           //Home in on player
           this.direction = diffY < 0 ? Direction.SOUTH : Direction.NORTH;
-          moveSprite(this);          
         } else {
-          //Pick a random direction and go
-          this.direction = Math.floor(Math.random()*4);
-          moveSprite(this);
+          if(this.steps > 0) {
+            this.steps--;
+          } else {
+            //Pick a random direction and go for 2/4/6 steps in this direction
+            this.direction = Math.floor(Math.random()*4);
+            this.steps = 2 + 2*(Math.random()*3);
+          }
         }
+        moveSprite(this);
       }
     }    
   }
@@ -922,19 +938,16 @@
 
   function drawTimerUpgrade() {
     drawUpgradeBase();
-    //Clock background
-    circle(20, 20, 11, darkGray);
-    circle(20, 20, 10, white);
-    //Clock face
-    ctx.save();
-    for(var i=0; i<6; i++) {
-      rotateBy(Math.PI/6);
-      path([ [20,10], [20,30] ], darkGray, true, 1);
-    }
-    circle(20, 20, 8, white);
-    ctx.restore();
-    //Clock hands
-    path([ [20,10], [20,20], [25,25] ], black, true, 2);
+    //Circle shade at the bottom	
+    ellipse(10, 25, 20, 8, shade);
+    //Wooden box
+    rect(12, 19, 16, 10, brown);
+    //Handle outline
+    rect(18, 12, 4, 7, darkGray);
+    rect(13, 8, 14, 4, darkGray);
+    //Handle highlight
+    rect(19, 11, 2, 8, mediumGray);
+    rect(14, 9, 12, 2, mediumGray);
   }
 
   function drawNinjaBase() {
@@ -1087,6 +1100,29 @@
     if(stage == 2) {
       path([ [16,40], [19,31], [17,23], [21,15], [20,23], [21,31], [20,40] ], lightYellow);
     }
+  }
+
+  function drawKey(x, y, label) {
+    ctx.save();
+    ctx.translate(x*40, y*40);
+
+    // Create Linear Gradients
+    var lingrad = ctx.createLinearGradient(0,0,38,0);
+    lingrad.addColorStop(0, lightGray);
+    lingrad.addColorStop(0.5, veryLightGray);
+    lingrad.addColorStop(1, lightGray);
+
+    //Background
+    roundedRect(2,2,36,36,4,mediumGray);
+    roundedRect(6,6,28,28,4,lingrad);
+
+    //Draw text
+    ctx.textAlign = "center";
+    ctx.font = "bold 10pt Arial";
+    ctx.fillStyle = darkGray;
+    ctx.fillText(label, 19, 25);
+
+    ctx.restore();
   }
 
   /************************/
@@ -1265,13 +1301,15 @@
       if(field[coordX][coordY] == null) {
         //Nothing there 
         sprite.move();
-        field[coordX][coordY] = new SpriteField(coordX,coordY);
+        if(!(sprite instanceof Ghost)) {
+          field[coordX][coordY] = new SpriteField(coordX,coordY);
+        }
       } else if(!(sprite instanceof Bomb) && field[coordX][coordY] instanceof PlayerField) { //or player and we are not a bomb
         sprite.move();
         return true;
-      } else if (sprite instanceof Ghost 
-                   && field[coordX][coordY].draw != drawStone 
-                   && !(field[coordX][coordY] instanceof PlayerField)) { //or ghost and not stone or other enemy
+      } else if (sprite instanceof Ghost //or ghost
+                   && field[coordX][coordY].draw != drawStone //and no stone
+                   && !(field[coordX][coordY] instanceof SpriteField)) { //no other enemy or bomb
         sprite.move();
       }
     }
@@ -1363,9 +1401,7 @@
           } else if(rand < 0.07) {
             var ghost = new Ghost(i, j);
             enemies.push(ghost);
-            var ghostField = new SpriteField(ghost.x, ghost.y, ghost);
-            field[i][j] = ghostField;
-            ghost.field = ghostField;
+            field[i][j] = null;
           } else if(rand < 0.5) {
             field[i][j] = new Sprite(i, j, drawTree);
           } else {
@@ -1402,7 +1438,7 @@
     player = new Ninja(0, 0);
 
     //Set up key listener
-    var keyListener = function(e) {
+    keyListener = function(e) {
       var pressed = e.type == 'keydown';
       switch(e.keyCode) {
         case 38: //up arrow
@@ -1437,6 +1473,10 @@
   }
 
   function initMenu() {
+    if(controlsDisplayed) {
+      return;
+    }
+
     //Get context
     ctx = document.getElementById('c').getContext('2d');
 
@@ -1458,9 +1498,10 @@
     ctx.font = "bold 12pt Arial Black";
     ctx.fillStyle = pageBackground;
 
-    ctx.fillText("Single Player", 9*40, 5*40-10);
-    ctx.fillText("2-Player Coop", 9*40, 6*40-10);
-    ctx.fillText("2-Player Versus", 9*40, 7*40-10);
+    ctx.fillText("Single Player", 8*40, 5*40-13);
+    ctx.fillText("2-Player Coop", 8*40, 6*40-13);
+    ctx.fillText("2-Player Versus", 8*40, 7*40-13);
+    ctx.fillText("Controls/Tutorial", 8*40, 8*40-13);
 
     //Draw selector bomb
     if(selectorBomb != null) {
@@ -1471,13 +1512,108 @@
     }
   }
 
+  function initControls() {
+    //Get context
+    ctx = document.getElementById('c').getContext('2d');
+    ctx.save();
+
+    //Clear canvas
+    rect(20, 40, 760, 440, background);
+
+    //Draw rounded corners
+    drawCorner(20, 40, 0);
+    drawCorner(740, 40, Math.PI*0.5);
+    drawCorner(740, 440, Math.PI);
+    drawCorner(20, 440, Math.PI*1.5);
+
+    //Draw text
+    ctx.textAlign = "left";
+    ctx.font = "bold 12pt Arial Black";
+    ctx.fillStyle = pageBackground;
+
+    ctx.fillText("Player 1 Controls", 1*40, 2*40-13);
+    ctx.fillText("Player 2 Controls", 1*40, 7*40-13);
+    ctx.fillText("Upgrades", 13*40, 2*40-13);
+
+    //Draw labels
+    ctx.textAlign = "center";
+    ctx.font = "10pt Arial";
+
+    ctx.fillText("Movement", 2*40 + 20, 5*40-20);
+    ctx.fillText("Movement", 2*40 + 20, 10*40-20);
+
+    ctx.textAlign = "left";
+    ctx.fillText("Trigger Bomb (only with Trigger upgrade)", 6*40 + 5, 3*40-16);
+    ctx.fillText("Trigger Bomb (only with Trigger upgrade)", 6*40 + 5, 8*40-16);
+    ctx.fillText("Plant Bomb", 7*40 + 30, 4*40-16);
+    ctx.fillText("Plant Bomb", 6*40 + 5, 9*40-16);
+
+    //Draw keys
+    drawKey(2,2,"W");
+    drawKey(1,3,"A");
+    drawKey(2,3,"S");
+    drawKey(3,3,"D");
+
+    drawKey(5,2,"V");
+
+    drawKey(2,7,"↑");
+    drawKey(1,8,"←");
+    drawKey(2,8,"↓");
+    drawKey(3,8,"→");
+
+    drawKey(5,7,"Ctrl");
+    drawKey(5,8,"Alt");
+
+    //Draw space
+    ctx.save();
+    ctx.translate(5*40, 3*40);
+    var lingrad = ctx.createLinearGradient(0,0,80,0);
+    lingrad.addColorStop(0, lightGray);
+    lingrad.addColorStop(0.5, veryLightGray);
+    lingrad.addColorStop(1, lightGray);
+    roundedRect(2,2,100,36,4,mediumGray);
+    roundedRect(6,6,92,28,4,lingrad);
+    ctx.restore();
+
+    //Draw upgrades
+    var upgrades = [ drawBombUpgrade, drawSizeUpgrade, drawSkatesUpgrade, 
+                     drawNoCollisionUpgrade, drawTimerUpgrade, drawKickUpgrade];
+    for(var i=0; i<upgrades.length; i++) {
+      ctx.save();
+      ctx.translate(13*40, (2+i)*40);
+      upgrades[i]();
+      ctx.restore();
+    }
+
+    //Draw upgrade descriptions
+    ctx.fillText("Extra Bomb", 14*40 + 5, 3*40-16);
+    ctx.fillText("Increase explosion size", 14*40 + 5, 4*40-16);
+    ctx.fillText("Faster movement", 14*40 + 5, 5*40-16);
+    ctx.fillText("Walk through trees", 14*40 + 5, 6*40-16);
+    ctx.fillText("Trigger bombs (extra key)", 14*40 + 5, 7*40-16);
+    ctx.fillText("Kick bombs", 14*40 + 5, 8*40-16);
+
+    //Draw separator
+    path([ [500,50], [500,400] ], pageBackground, true, 2);
+
+    //Draw labels
+    ctx.textAlign = "center";
+    ctx.font = "bold 14pt Arial Black";
+    ctx.fillText("Return by pressing space", 400, 450);
+  }
+
   function selectEntry() {
+    if(controlsDisplayed) {
+      controlsDisplayed = false;
+      initMenu();
+      return;
+    }
+
     for(var i=1; i<=2; i++) {
       for(var j=0; j<4; j++) {
         var move = getOffsetForDirection(j);
         var coordX = selectorBomb.x+(move[0]*i);
         var coordY = selectorBomb.y+(move[1]*i);
-        console.log('explosion at ' + coordX + ', ' + coordY);
 
         ctx.save();
         ctx.translate(coordX*40, coordY*40);
@@ -1495,9 +1631,24 @@
     drawExplosionCenter(2);
     ctx.restore();
 
-    selectorBomb = null;
+    if(selectorBomb.y == 7) {
+      controlsDisplayed = true;
+      window.setTimeout(function() {
+        initControls();
+      }, 500);
+    } else {
+      if(selectorBomb.y == 4) {
+        gameMode = Mode.SINGLE_PLAYER;
+      } else if(selectorBomb.y == 5) {
+        gameMode = Mode.MULTI_VERSUS;
+      } else if(selectorBomb.y == 6) {
+        gameMode = Mode.MULTI_COOP;       
+      }
+      window.removeEventListener('keyup', keyListener);
+      selectorBomb = null;
+      window.setTimeout(initBombJs, 500);
+    }
     explosionSound.play();
-    window.setTimeout(initBombJs, 500);
   }
 
   function initializeSound(synth, params) {
@@ -1517,17 +1668,17 @@
     upgradeSound = initializeSound(synth, "0,,0.2524,,0.442,0.18,,0.4331,,,,,,0.2551,,0.5655,,,1,,,,,0.5");
 
     //Set up key listener
-    var keyListener = function(e) {
+    keyListener = function(e) {
       switch(e.keyCode) {
         case 38: //up arrow
         case 87: //w
-          keys[Direction.NORTH] = selectorBomb.y--;
-          if(selectorBomb.y < 4) { selectorBomb.y = 6; }
+          selectorBomb.y--;
+          if(selectorBomb.y < 4) { selectorBomb.y = 7; }
           break;
         case 40: //down arrow
         case 83: //s
-          keys[Direction.SOUTH] = selectorBomb.y++;
-          if(selectorBomb.y > 6) { selectorBomb.y = 4; }
+          selectorBomb.y++;
+          if(selectorBomb.y > 7) { selectorBomb.y = 4; }
           break;
         case 32: //space
           selectEntry();
