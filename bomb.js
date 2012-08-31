@@ -50,6 +50,7 @@
   var lightBlue = "rgb(122,148,201)";
   var darkBlue = "rgb(17,42,94)";
   var pageBackground = "rgb(246,221,174)";
+  var bandana = red;
 
   var requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame ||
       window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
@@ -192,6 +193,11 @@
       ctx.save();
       ctx.translate(20 + sprite.x*40, 40 + sprite.y*40);
 
+      //Update bandana color
+      if(sprite instanceof Ninja) {
+        bandana = players.indexOf(sprite) == 0 ? red : yellow;
+      }
+
       //Draw sprite
       if(sprite.update()) {
         sprites.splice(i--, 1);
@@ -203,13 +209,20 @@
     //Draw HUD
     ctx.textAlign = "left";
     ctx.font = "bold 12pt Arial Black";
-    ctx.fillStyle = pageBackground;
 
     if(players[0] != null) {
       rect(50,0,50,40, darkGreen);
       rect(150,0,50,40, darkGreen);
+      ctx.fillStyle = pageBackground;
       ctx.fillText("x" + players[0].bombs, 50, 22);
       ctx.fillText("x" + players[0].explosionSize, 150, 22);
+    }
+    if(players[1] != null) {
+      rect(650,0,50,40, darkGreen);
+      rect(750,0,50,40, darkGreen);
+      ctx.fillStyle = pageBackground;
+      ctx.fillText("x" + players[1].bombs, 650, 22);
+      ctx.fillText("x" + players[1].explosionSize, 750, 22);
     }
 
     //Draw border
@@ -1067,7 +1080,7 @@
     //Body
     rect(16, 18, 8, 12, ninja);
     //Bandana
-    path([ [12,8], [28,8] ], red, true, 1);
+    path([ [12,8], [28,8] ], bandana, true, 1);
   }
 
   function drawVerticalNinja(leftArm, rightArm, leftLeg, rightLeg) {
@@ -1562,6 +1575,20 @@
     ctx.scale(0.5, 0.5);
     drawExplosionCenter(2);
     ctx.restore();
+
+    if(gameMode != Mode.SINGLE_PLAYER) {
+      ctx.save();
+      ctx.translate(620, 0);
+      ctx.scale(0.7, 0.7);
+      drawBomb(true);
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(720, 5);
+      ctx.scale(0.5, 0.5);
+      drawExplosionCenter(2);
+      ctx.restore();
+    }
 
     //Set up player
     players = new Array();
