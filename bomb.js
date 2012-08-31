@@ -1,4 +1,29 @@
+/**
+ * bomb.js
+ * 
+ * Copyright 2012 Markus Neubrand
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
 "use strict";
+
+/*
+ * What follows is an ungodly mess of spaghetti code.
+ * Good luck to anybody who tries to decipher it.
+ * May the semicolons be with you...
+ */
 
 (function() {
   //Colors
@@ -54,10 +79,8 @@
   var sprites;
   var enemies;
   var field = new Array(width);
-  var player;
-  var bombs;
-  var plantedBombs;
-  var explosionSize;
+  var players;
+  var dead;
   
   //Timing
   var lastUpdate = 0;
@@ -67,6 +90,7 @@
   //Pressed keys
   var keyListener;
   var keys = new Array(4);
+  var keys2 = new Array(4);
 
   //Sounds
   var explosionSound
@@ -83,9 +107,19 @@
     cleared = new Array();
     quarter = Math.floor((lastUpdate%1000)/250);
  
-    //Draw sprites and player
-    for(var i=0; i<=sprites.length + enemies.length; i++) {
-      var sprite = i < sprites.length ? sprites[i] : (i < sprites.length + enemies.length ? enemies[i - sprites.length] : player);
+    //Draw sprites and players
+    for(var i=0; i<sprites.length + enemies.length + players.length; i++) {
+      var sprite;
+      if(i < sprites.length) {
+        sprite = sprites[i];
+      } else if(i < sprites.length + enemies.length) {
+        sprite = enemies[i - sprites.length];
+      } else {
+        sprite = players[i - sprites.length - enemies.length];
+	if(sprite == null) {
+          continue;
+        }
+      }
       
       clearField(sprite.x, sprite.y);
 
@@ -116,16 +150,22 @@
       }
 
       //Check for collision with player
-      if(!(sprite instanceof Ninja)
-           && player.x == sprite.x 
-           && player.y == sprite.y) {
-        //If it is an explosion die
-        if(sprite instanceof Enemy || sprite instanceof Explosion) {
-          die();
-        } else if(sprite instanceof Upgrade) {
-          handleUpgrade(sprite);
-          field[sprite.x][sprite.y] = null;
-          sprites.splice(i--, 1);
+      if(!(sprite instanceof Ninja)) {
+        for(var j=0; j<players.length; j++) {
+          var player = players[j];
+          if(player == null) {
+            continue;
+          }
+          if(player.x == sprite.x && player.y == sprite.y) {
+            //If it is an explosion die
+            if(sprite instanceof Enemy || sprite instanceof Explosion) {
+              die(player);
+            } else if(sprite instanceof Upgrade) {
+              handleUpgrade(sprite, player);
+              field[sprite.x][sprite.y] = null;
+              sprites.splice(i--, 1);
+            }
+          }
         }
       }
 
@@ -157,19 +197,20 @@
         sprites.splice(i--, 1);
       }
 
-
       ctx.restore();
     }
 
     //Draw HUD
-    rect(50,0,50,40, darkGreen);
-    rect(150,0,50,40, darkGreen);
-
     ctx.textAlign = "left";
     ctx.font = "bold 12pt Arial Black";
     ctx.fillStyle = pageBackground;
-    ctx.fillText("x" + bombs, 50, 22);
-    ctx.fillText("x" + explosionSize, 150, 22);
+
+    if(players[0] != null) {
+      rect(50,0,50,40, darkGreen);
+      rect(150,0,50,40, darkGreen);
+      ctx.fillText("x" + players[0].bombs, 50, 22);
+      ctx.fillText("x" + players[0].explosionSize, 150, 22);
+    }
 
     //Draw border
     path([ [20,40], [20+width*40, 40], [20+width*40, 39+height*40], [20, 39+height*40], [20,40] ], darkGreen, true, 2);
@@ -180,14 +221,40 @@
     drawCorner(740, 440, Math.PI);
     drawCorner(20, 440, Math.PI*1.5);
 
-    //Draw game over if we are dead after 1000 ms
-    if(player.dead && lastUpdate - player.dead > 1000) {
+    if(gameMode != Mode.MULTI_VERSUS && enemies.length == 0) { //TODO
+      //Draw game won if no enemies are left (coop/single player) or opponent is dead (versus)
+      ctx.font = "bold 72pt Arial Black";
+      ctx.textAlign = "center";
+      ctx.fillStyle = lightBlue;
+      ctx.fillText("GAME WON", 400, 240);
+
+      player.moving = false;
+      player.wasMoving = player.wasMoving;
+
+      //Disable controls
+      window.onkeydown = null;
+      window.onkeyup = null;
+      keys = new Array(4);
+
+      window.setTimeout(initBombJs, 3000);
+    } else if(dead && lastUpdate - dead > 1000) {
+      //Draw game over if we are dead after 1000 ms
       ctx.font = "bold 72pt Arial Black";
       ctx.textAlign = "center";
       ctx.fillStyle = darkRed;
       ctx.fillText("GAME OVER", 400, 240);
+
+      if(gameMode == Mode.MULTI_VERSUS) {
+        ctx.font = "bold 48pt Arial Black";
+        ctx.textAlign = "center";
+        ctx.fillStyle = darkRed;
+        ctx.fillText("Player " + (players[0]!=null && !players[0].dead ? "1" : "2") + " won", 400, 340);        
+      }
     }
 
+    if(dead && lastUpdate - dead > 3000) {
+      initBombJs();
+    }
     requestAnimationFrame(step);
   }
 
@@ -230,7 +297,18 @@
   }
 
   function handleInput() {
-    //Check if and which direction key was pressed last
+    for(var i=0; i<players.length; i++) {
+      //Check if and which direction key was pressed last
+      var maxIndex = getMaxIndex(i == 0 ? keys : keys2);
+      //If we are not moving and a key is pressed trigger a move
+      if(maxIndex != -1 && !players[i].moving) {
+        players[i].direction = maxIndex;
+        movePlayer(players[i]);
+      }
+    }
+  }
+
+  function getMaxIndex(keys) {
     var maximum = 0;
     var maxIndex = -1;
     for(var i=0; i<4; i++) {
@@ -239,25 +317,35 @@
         maxIndex = i;
       }
     }
-
-    //If we are not moving and a key is pressed trigger a move
-    if(maximum > 0 && !player.moving) {
-      player.direction = maxIndex;
-      movePlayer();
-    }
+    return maxIndex;
   }
 
-  function die() {
+  function die(player) {
+    //Kill player
     if(!player.dead) {
       player.dead = lastUpdate;
       player.moving = false;
       player.wasMoving = player.wasMoving;
+    }
+
+    //Check how many are still alive
+    var alive = 0;
+    for(var i=0; i<players.length; i++) {
+      if(players[i] != null && !players[i].dead) {
+        alive++;
+      }
+    }
+
+    if(!dead && 
+         ((gameMode == Mode.MULTI_VERSUS && alive == 1) || 
+         (gameMode != Mode.MULTI_VERSUS && alive == 0))) {
+      dead = lastUpdate;
 
       //Disable controls
       window.onkeydown = null;
       window.onkeyup = null;
       keys = new Array(4);
-
+  
       window.setTimeout(initBombJs, 3000);
     }
   }
@@ -296,13 +384,13 @@
   //Sprite which blocks the field underneath it (e.g. Bomb or Upgrade)
   function SpriteField(x, y, sprite) {
     Sprite.call(this, x, y, function() { 
-      /*if(sprite instanceof Bomb) {
+      if(sprite instanceof Bomb) {
        rect(0,0,40,40,darkGreen);
       } else if(sprite instanceof Upgrade) {
        rect(0,0,40,40,red); 
       } else {
        rect(0,0,40,40,yellow); 
-      }*/
+      }
     });
     this.sprite = sprite;
   }
@@ -322,10 +410,11 @@
   }
   Upgrade.prototype = new Sprite();
 
-  function Bomb(x, y) {
+  function Bomb(x, y, player) {
     MovingSprite.call(this, x, y);
     this.scale = 0;
     this.moveTime = 250;
+    this.player = player;
     this.draw = function() {
       ctx.translate(2,2);
 
@@ -348,7 +437,7 @@
       drawBomb(quarter == 0 || quarter == 2);
 
       //Trigger explosion when countdown reaches 0
-      if(!player.timer) {
+      if(!this.player.timer) {
         var diff = lastUpdate - this.initialized;
         if(diff > 3000) {
           this.explode();
@@ -357,9 +446,9 @@
     }
     this.explode = function() {
       explosionSound.play();
-      plantedBombs--;
+      this.player.plantedBombs--;
       field[this.x][this.y] = null;
-      triggerExplosion(this.x, this.y);
+      triggerExplosion(this);
       sprites.splice(sprites.indexOf(this), 1);
       return true;
     }
@@ -430,7 +519,14 @@
       if(this.dead) {
         movingSound.pause();
         ctx.translate(this.offset[0], this.offset[1]);
-        drawDeadNinja(anim, !anim);
+        var diff = lastUpdate - this.dead;
+        //Remove sprite after 3 sec
+        if(diff > 3000) {
+          clear();
+          players[players.indexOf(this)] = null;
+        } else {
+          drawDeadNinja(anim, !anim);
+        }
       } else if(this.moving) {
         movingSound.play();
         movingOffset(this);
@@ -567,16 +663,29 @@
       } else {
         this.drawings[this.direction](true);
    
-        var diffX = this.x - player.x;
-        var diffY = this.y - player.y;
-        //Check if player is near
-        if(Math.abs(diffX) < 3 && diffX != 0 && diffY == 0) {
-          //Home in on player
-          this.direction = diffX < 0 ? Direction.EAST : Direction.WEST;
-        } else if(Math.abs(diffY) < 3 && diffY != 0 && diffX == 0) {
-          //Home in on player
-          this.direction = diffY < 0 ? Direction.SOUTH : Direction.NORTH;
-        } else {
+        var nearPlayer = false;
+        for(var i=0; i<players.length; i++) {
+          var player = players[i];
+          if(player == null) {
+            continue;
+          }
+          var diffX = this.x - player.x;
+          var diffY = this.y - player.y;
+          //Check if player is near
+          if(Math.abs(diffX) < 3 && diffX != 0 && diffY == 0) {
+            //Home in on player
+            this.direction = diffX < 0 ? Direction.EAST : Direction.WEST;
+            nearPlayer = true;
+            break;
+          } else if(Math.abs(diffY) < 3 && diffY != 0 && diffX == 0) {
+            //Home in on player
+            this.direction = diffY < 0 ? Direction.SOUTH : Direction.NORTH;
+            nearPlayer = true;
+            break;
+          } 
+        }
+
+        if(!nearPlayer) {
           if(this.steps > 0) {
             this.steps--;
           } else {
@@ -1160,7 +1269,11 @@
   /************************/
   /*      Game logic      */
   /************************/
-  function triggerExplosion(x, y) {
+  function triggerExplosion(bomb) {
+    var x = bomb.x;
+    var y = bomb.y;
+    var explosionSize = bomb.player.explosionSize;
+ 
     //Active branches of the explosion
     var active = [ true, true, true, true ];
 
@@ -1193,10 +1306,10 @@
                 if(sprite instanceof Bomb) {
                   //If we hit a bomb explode it
                   toExplode.push(sprite);
-                } else if(sprite instanceof Enemy) {
+                }/* else if(sprite instanceof Enemy) { check if this is really necessary
                   //If we hit an enemy burn him
                   sprite.die();
-                }
+                }*/
               }  
             }
             //Add explosion sprite if we are still active
@@ -1218,6 +1331,7 @@
 
   function spawnUpgrades(x, y) {
     var r = Math.random();
+    //TODO change to reasonable amount
 //    if(r < 0.2) {
     if(r<1.0) {
       r = Math.random();
@@ -1239,21 +1353,20 @@
     }
   }
 
-  function handleUpgrade(sprite) {
+  function handleUpgrade(sprite, player) {
     upgradeSound.play();
     if(sprite.draw == drawBombUpgrade) {
       //Increase bomb capacity
-      bombs++;
+      player.bombs++;
     } else if(sprite.draw == drawSizeUpgrade) {
       //Increase size of explosion up to 5
-      if(explosionSize<5) {
-        explosionSize++;
+      if(player.explosionSize<5) {
+        player.explosionSize++;
       }
     } else if(sprite.draw == drawSkatesUpgrade) {
       //Speed up player
       player.moveTime = 250;
-    }
-    else if(sprite.draw == drawNoCollisionUpgrade) {
+    } else if(sprite.draw == drawNoCollisionUpgrade) {
       //Player can walk through bombs and trees
       player.noCollision = true;
     } else if(sprite.draw == drawTimerUpgrade) {
@@ -1265,24 +1378,24 @@
     }
   }
 
-  function plantBomb() {
+  function plantBomb(player) {
     //If there is nothing at the field and we still have bombs left plant a bomb
-    if((field[player.x][player.y] == null || field[player.x][player.y] instanceof PlayerField) && plantedBombs < bombs) {
+    if((field[player.x][player.y] == null || field[player.x][player.y] instanceof PlayerField) && player.plantedBombs < player.bombs) {
       plantSound.play();
-      var bombSprite = new Bomb(player.x, player.y);
+      var bombSprite = new Bomb(player.x, player.y, player);
       sprites.push(bombSprite);
       var bombField = new SpriteField(player.x, player.y, bombSprite) ;
       bombSprite.field = bombField;
       field[player.x][player.y] = bombField;
-      plantedBombs++;
+      player.plantedBombs++;
     }
   }
 
-  function triggerBombs() {
+  function triggerBombs(player) {
     if(player.timer) {
       //If we have the timer upgrade explode all bombs
       for(var i=0; i<sprites.length; i++) {
-        if(sprites[i] instanceof Bomb) {
+        if(sprites[i] instanceof Bomb && sprites[i].player == player) {
           sprites[i].explode();
         }
       }
@@ -1317,7 +1430,7 @@
   }
 
   //Check if it's a legal move
-  function movePlayer() {
+  function movePlayer(player) {
     var move = getOffsetForDirection(player.direction);
     var coordX = player.x+move[0];
     var coordY = player.y+move[1];
@@ -1329,13 +1442,13 @@
       } else if(player.noCollision && field[coordX][coordY].draw != drawStone) { // or noCollision mode and no stone
         shouldMove = true;
         //Kicked a bomb
-        if(player.kick && field[coordX][coordY].sprite instanceof Bomb) {
+        if(player.kick && field[coordX][coordY].sprite instanceof Bomb && field[coordX][coordY].sprite.player == player) {
           var bomb = field[coordX][coordY].sprite;
           bomb.direction = player.direction;
           moveSprite(bomb);
         }
       } else if(field[coordX][coordY] instanceof SpriteField) {
-        if(field[coordX][coordY].sprite instanceof Bomb && player.kick) { // or kick a bomb
+        if(field[coordX][coordY].sprite instanceof Bomb && player.kick && field[coordX][coordY].sprite.player == player) { // or kick a bomb
           var bomb = field[coordX][coordY].sprite;
           bomb.direction = player.direction;
           if(moveSprite(bomb)) {
@@ -1368,9 +1481,7 @@
     //Initialize globals
     sprites = new Array();
     enemies = new Array();
-    bombs = 1;
-    plantedBombs = 0;
-    explosionSize = 1;    
+    dead = null;
 
     //Get context
     ctx = document.getElementById('c').getContext('2d');
@@ -1392,17 +1503,13 @@
                   )) {
           //Non corner
           var rand = Math.random();
-          if(rand < 0.05) {
-            var golem = new Golem(i, j);
-            enemies.push(golem);
-            var golemField = new SpriteField(golem.x, golem.y, golem);
-            field[i][j] = golemField;
-            golem.field = golemField;
-          } else if(rand < 0.07) {
-            var ghost = new Ghost(i, j);
-            enemies.push(ghost);
-            field[i][j] = null;
-          } else if(rand < 0.5) {
+
+          //40% + protect player with 2 trees
+          if(rand < 0.4
+            || (i==2 && j==0)
+            || (i==0 && j==2)
+            || (i==width-3 && j==height-1)
+            || (i==width-1 && j==height-3)) {
             field[i][j] = new Sprite(i, j, drawTree);
           } else {
             field[i][j] = null;
@@ -1411,12 +1518,34 @@
           field[i][j] = null;
         }
 
+
         //Draw the field if it's not null
         if(field[i][j]!=null) {
           ctx.save();
           ctx.translate(20 + i*40, 40 + j*40);
           field[i][j].update();
           ctx.restore();
+        }
+      }
+    }
+
+    if(gameMode != Mode.MULTI_VERSUS) {
+      //Spawn 13 enemies
+      while(enemies.length < 13) {
+        var i = parseInt(Math.random() * width);
+        var j = parseInt(Math.random() * height);
+        if(field[i][j] != null) {
+          continue;
+        }
+        if(Math.random() < 0.7) {
+          var golem = new Golem(i, j);
+          enemies.push(golem);
+          var golemField = new SpriteField(golem.x, golem.y, golem);
+          field[i][j] = golemField;
+          golem.field = golemField;
+        } else {
+          var ghost = new Ghost(i, j);
+          enemies.push(ghost);
         }
       }
     }
@@ -1435,33 +1564,69 @@
     ctx.restore();
 
     //Set up player
-    player = new Ninja(0, 0);
+    players = new Array();
+    var player = new Ninja(0, 0);
+    player.bombs = 1;
+    player.plantedBombs = 0;
+    player.explosionSize = 1;   
+    players.push(player);
+
+    //Set up second player if necessary
+    if(gameMode != Mode.SINGLE_PLAYER) {
+      player = new Ninja(width - 1, height - 1);
+      player.bombs = 1;
+      player.plantedBombs = 0;
+      player.explosionSize = 1;   
+      players.push(player);
+    }
 
     //Set up key listener
     keyListener = function(e) {
       var pressed = e.type == 'keydown';
       switch(e.keyCode) {
         case 38: //up arrow
+          keys2[Direction.NORTH] = pressed ? e.timeStamp : 0;
+          break;
         case 87: //w
           keys[Direction.NORTH] = pressed ? e.timeStamp : 0;
           break;
         case 39: //right arrow
+          keys2[Direction.EAST] = pressed ? e.timeStamp : 0;
+          break;
         case 68: //d
           keys[Direction.EAST] = pressed ? e.timeStamp : 0;
           break;
         case 40: //down arrow
+          keys2[Direction.SOUTH] = pressed ? e.timeStamp : 0;
+          break;
         case 83: //s
           keys[Direction.SOUTH] = pressed ? e.timeStamp : 0;
           break;
         case 37: //left arrow
+          keys2[Direction.WEST] = pressed ? e.timeStamp : 0;
+          break;
         case 65: //a
           keys[Direction.WEST] = pressed ? e.timeStamp : 0;
           break;
         case 32: //space
-          plantBomb();
+          if(players[0]) {
+            plantBomb(players[0]);
+          }
           break;
         case 86: //v
-          triggerBombs();
+          if(players[0]) {
+            triggerBombs(players[0]);
+          }
+          break;
+        case 18: //alt
+          if(players[1]) {
+            plantBomb(players[1]);
+          }
+          break;
+        case 17: //ctrl
+          if(players[1]) {
+            triggerBombs(players[1]);
+          }
           break;
       }
     };
@@ -1590,7 +1755,7 @@
     ctx.fillText("Increase explosion size", 14*40 + 5, 4*40-16);
     ctx.fillText("Faster movement", 14*40 + 5, 5*40-16);
     ctx.fillText("Walk through trees", 14*40 + 5, 6*40-16);
-    ctx.fillText("Trigger bombs (extra key)", 14*40 + 5, 7*40-16);
+    ctx.fillText("Trigger bombs", 14*40 + 5, 7*40-16);
     ctx.fillText("Kick bombs", 14*40 + 5, 8*40-16);
 
     //Draw separator
@@ -1640,9 +1805,9 @@
       if(selectorBomb.y == 4) {
         gameMode = Mode.SINGLE_PLAYER;
       } else if(selectorBomb.y == 5) {
-        gameMode = Mode.MULTI_VERSUS;
+        gameMode = Mode.MULTI_COOP;
       } else if(selectorBomb.y == 6) {
-        gameMode = Mode.MULTI_COOP;       
+        gameMode = Mode.MULTI_VERSUS;       
       }
       window.removeEventListener('keyup', keyListener);
       selectorBomb = null;
@@ -1652,15 +1817,15 @@
   }
 
   function initializeSound(synth, params) {
-    var soundURL = synth.getWave(params);
-    var player = new Audio();
-    player.src = soundURL;
-    return player;
+    var soundURL = synth['getWave'](params);
+    var audio = new Audio();
+    audio.src = soundURL;
+    return audio;
   }
 
-  window.init = function() {
+  window.onload = function() {
     //Initialize sounds
-    var synth = new SfxrSynth();
+    var synth = new window['SfxrSynth']();
     movingSound = initializeSound(synth, "0,0.09,0.18,0.2,0.2907,0.0996,,-0.82,-0.8945,-0.466,0.04,0.02,0.22,0.84,-0.0038,0.5484,-0.0768,0.4759,0.9999,0.7727,0.2592,0.0002,-0.986,0.4");
     movingSound.loop = true;
     explosionSound = initializeSound(synth, "3,,0.1572,0.3281,0.422,0.0723,,0.0993,,,,,,,,0.4485,,,1,,,,,0.5");
@@ -1691,5 +1856,3 @@
     initMenu();
   };
 })();
-
-window.onload = init;

@@ -1,2 +1,3 @@
-- Hot seat
+- Explosion drawing on top
+- Players running into each other/Clearing PlayerField
 - Multiplayer
