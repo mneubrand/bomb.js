@@ -234,7 +234,7 @@
     drawCorner(740, 440, Math.PI);
     drawCorner(20, 440, Math.PI*1.5);
 
-    if(gameMode != Mode.MULTI_VERSUS && enemies.length == 0) { //TODO
+    if(gameMode != Mode.MULTI_VERSUS && enemies.length == 0) {
       //Draw game won if no enemies are left (coop/single player) or opponent is dead (versus)
       ctx.font = "bold 72pt Arial Black";
       ctx.textAlign = "center";
@@ -397,13 +397,13 @@
   //Sprite which blocks the field underneath it (e.g. Bomb or Upgrade)
   function SpriteField(x, y, sprite) {
     Sprite.call(this, x, y, function() { 
-      if(sprite instanceof Bomb) {
+      /*if(sprite instanceof Bomb) {
        rect(0,0,40,40,darkGreen);
       } else if(sprite instanceof Upgrade) {
        rect(0,0,40,40,red); 
       } else {
        rect(0,0,40,40,yellow); 
-      }
+      }*/
     });
     this.sprite = sprite;
   }
@@ -413,7 +413,7 @@
   function PlayerField(x, y, sprite) {
     this.sprite = sprite;
     Sprite.call(this, x, y, function() { 
-       rect(0,0,40,40,darkBlue);
+       //rect(0,0,40,40,darkBlue);
     });
   }
   PlayerField.prototype = new SpriteField();
@@ -1279,6 +1279,13 @@
     ctx.translate(-20,-20);
   }
 
+  function isNearCorner(i, j) {
+    return (i==0 && j==0) || (i==0 && j==1) || (i==1 && j==0) //top left
+      || (i==0 && j==height-1) || (i==0 && j==height-2) || (i==1 && j==height-1) //bottom left
+      || (i==width-1 && j==0) || (i==width-1 && j==1) || (i==width-2 && j==0) //top right
+      || (i==width-1 && j==height-1) || (i==width-1 && j==height-2) || (i==width-2 && j==height-1); //bottom right
+  }
+
   /************************/
   /*      Game logic      */
   /************************/
@@ -1508,12 +1515,7 @@
       for(var j=0; j<height; j++) {
         if(i%2==1 && j%2==1) {
           field[i][j] = new Sprite(i, j, drawStone);
-        } else if(!(
-                  (i==0 && j==0) || (i==0 && j==1) || (i==1 && j==0) //top left
-                  || (i==0 && j==height-1) || (i==0 && j==height-2) || (i==1 && j==height-1) //bottom left
-                  || (i==width-1 && j==0) || (i==width-1 && j==1) || (i==width-2 && j==0) //top right
-                  || (i==width-1 && j==height-1) || (i==width-1 && j==height-2) || (i==width-2 && j==height-1) //bottom right
-                  )) {
+        } else if(!isNearCorner(i, j)) {
           //Non corner
           var rand = Math.random();
 
@@ -1547,7 +1549,7 @@
       while(enemies.length < 13) {
         var i = parseInt(Math.random() * width);
         var j = parseInt(Math.random() * height);
-        if(field[i][j] != null) {
+        if(field[i][j] != null || isNearCorner(i, j)) {
           continue;
         }
         if(Math.random() < 0.7) {
