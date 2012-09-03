@@ -22,7 +22,6 @@
  * Good luck to anybody who tries to decipher it.
  * May the semicolons be with you...
  */
-
 (function() {
   //Colors
   var darkGreen = 'rgb(0,49,0)';
@@ -1603,7 +1602,7 @@
     //Set up second player if necessary
     if(gameMode != Mode.SINGLE_PLAYER) {
       player = new Ninja(width - 1, height - 1);
-      field[width - 1, height - 1] = new PlayerField(0, 0);
+      field[width - 1][height - 1] = new PlayerField(0, 0);
       player.bombs = 1;
       player.plantedBombs = 0;
       player.explosionSize = 1;   

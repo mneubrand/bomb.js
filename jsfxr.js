@@ -60,7 +60,7 @@ function SfxrParams() {
   
 }
 
-﻿/**
+/**
  * SfxrSynth
  * 
  * Copyright 2010 Thomas Vian
