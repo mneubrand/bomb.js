@@ -480,8 +480,20 @@ function SfxrSynth() {
   }
 }
 
+SfxrSynth.prototype.getSfx = function(str) {
+  // Initialize SfxrParams
+  this._params.setSettingsString(str);
+
+  // Synthesize Wave
+  this.reset(true);
+  this._envelopeFullLength = parseInt(this._envelopeFullLength);
+  var samples = new Uint16Array(this._envelopeFullLength);
+  var used = this.synthWave(samples, this._envelopeFullLength, false);
+  return this.getWave(samples, used);
+}
+
 // Adapted from http://html5-demos.appspot.com/static/html5-whats-new/template/index.html#31
-SfxrSynth.prototype.getWave = function(str) {
+SfxrSynth.prototype.getWave = function(samples, length) {
   // Initialize header
   var header = new Uint8Array([
     0x52,0x49,0x46,0x46, // "RIFF"
@@ -499,21 +511,12 @@ SfxrSynth.prototype.getWave = function(str) {
     0, 0, 0, 0           // put number of samples here
   ]);  // Note: we just want the ArrayBuffer.
 
-  // Initialize SfxrParams
-  this._params.setSettingsString(str);
-
-  // Synthesize Wave
-  this.reset(true);
-  this._envelopeFullLength = parseInt(this._envelopeFullLength);
-  var samples = new Uint16Array(this._envelopeFullLength);
-  var used = this.synthWave(samples, this._envelopeFullLength, false);
-
-  var soundLength = used * 2;
+  var soundLength = length * 2;
   var dv = new Uint32Array(header.buffer);
   dv[1] = 36 + soundLength;
   dv[10] = soundLength;
 
-  var blob = new Blob([header.buffer, samples.subarray(0, used-1).buffer], { "type" : "audio/wav" });
+  var blob = new Blob([header.buffer, samples.subarray(0, length-1).buffer], { "type" : "audio/wav" });
   
   var url = window.URL || window.webkitURL;
   return url.createObjectURL(blob);
@@ -522,3 +525,4 @@ SfxrSynth.prototype.getWave = function(str) {
 //Exports for Closure
 window['SfxrSynth'] = SfxrSynth; // <-- Constructor
 SfxrSynth.prototype['getWave'] = SfxrSynth.prototype.getWave;
+SfxrSynth.prototype['getSfx'] = SfxrSynth.prototype.getSfx;

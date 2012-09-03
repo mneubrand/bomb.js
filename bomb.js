@@ -94,6 +94,7 @@
   var keys2 = new Array(4);
 
   //Sounds
+  var synth;
   var explosionSound
   var plantSound;
   var upgradeSound;
@@ -1845,21 +1846,31 @@
     explosionSound.play();
   }
 
-  function initializeSound(synth, params) {
-    var soundURL = synth['getWave'](params);
+  function initializeSound(params) {
+    var soundURL = synth['getSfx'](params);
     var audio = new Audio();
     audio.src = soundURL;
     return audio;
   }
 
   window.onload = function() {
+    synth = new window['SfxrSynth']();
+
+    var binString = atob(song);
+    var modFile = new ModFile(binString);
+    var modPlayer = new ModPlayer(modFile, 44100);
+    var bufferLength = 44100 * 5;
+    var soundURL = synth['getWave'](modPlayer.getSamples(bufferLength), bufferLength);
+    var audio = new Audio();
+    audio.src = soundURL;
+    audio.play();
+
     //Initialize sounds
-    var synth = new window['SfxrSynth']();
-    movingSound = initializeSound(synth, "0,0.09,0.18,0.2,0.2907,0.0996,,-0.82,-0.8945,-0.466,0.04,0.02,0.22,0.84,-0.0038,0.5484,-0.0768,0.4759,0.9999,0.7727,0.2592,0.0002,-0.986,0.4");
+    movingSound = initializeSound("0,0.09,0.18,0.2,0.2907,0.0996,,-0.82,-0.8945,-0.466,0.04,0.02,0.22,0.84,-0.0038,0.5484,-0.0768,0.4759,0.9999,0.7727,0.2592,0.0002,-0.986,0.4");
     movingSound.loop = true;
-    explosionSound = initializeSound(synth, "3,,0.1572,0.3281,0.422,0.0723,,0.0993,,,,,,,,0.4485,,,1,,,,,0.5");
-    plantSound = initializeSound(synth, "0,,0.0589,,0.2623,0.269,,-0.3668,,,,,,0.5726,,,,,1,,,,,0.5");
-    upgradeSound = initializeSound(synth, "0,,0.2524,,0.442,0.18,,0.4331,,,,,,0.2551,,0.5655,,,1,,,,,0.5");
+    explosionSound = initializeSound("3,,0.1572,0.3281,0.422,0.0723,,0.0993,,,,,,,,0.4485,,,1,,,,,0.5");
+    plantSound = initializeSound("0,,0.0589,,0.2623,0.269,,-0.3668,,,,,,0.5726,,,,,1,,,,,0.5");
+    upgradeSound = initializeSound("0,,0.2524,,0.442,0.18,,0.4331,,,,,,0.2551,,0.5655,,,1,,,,,0.5");
 
     //Set up key listener
     keyListener = function(e) {
