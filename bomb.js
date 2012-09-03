@@ -3,21 +3,19 @@
  * 
  * Copyright 2012 Markus Neubrand
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
+ * Licensed under the Apache License, Version 2.0 (the 'License');
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
+ * distributed under the License is distributed on an 'AS IS' BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
 
-
-"use strict";
 
 /*
  * What follows is an ungodly mess of spaghetti code.
@@ -27,29 +25,29 @@
 
 (function() {
   //Colors
-  var darkGreen = "rgb(0,49,0)";
-  var lightGreen = "rgb(0,59,0)";
-  var veryLightGreen = "rgb(0,69,0)";
-  var darkGray = "rgb(21,21,21)";
-  var ninja = "rgb(32,32,32)";
-  var mediumGray = "rgb(91, 82, 69)";
-  var lightGray = "rgb(114,104,92)";
-  var veryLightGray = "rgb(128,118,106)";
-  var brown = "rgb(73,34,0)";
-  var black = "rgb(0,0,0)";
-  var white = "rgb(255,255,255)";
-  var yellow = "rgb(255,204,0)";
-  var lightYellow = "rgb(255,255,140)";
-  var orange = "rgb(212,85,0)";
-  var red = "rgb(255,0,0)";
-  var lightRed = "rgb(255,170,170)";
-  var darkRed = "rgb(160,16,0)";
-  var face = "rgb(255,204,153)";
-  var shade = "rgba(0,0,0,0.2)";
-  var background = "rgb(50,81,40)";
-  var lightBlue = "rgb(122,148,201)";
-  var darkBlue = "rgb(17,42,94)";
-  var pageBackground = "rgb(246,221,174)";
+  var darkGreen = 'rgb(0,49,0)';
+  var lightGreen = 'rgb(0,59,0)';
+  var veryLightGreen = 'rgb(0,69,0)';
+  var darkGray = 'rgb(21,21,21)';
+  var ninja = 'rgb(32,32,32)';
+  var mediumGray = 'rgb(91, 82, 69)';
+  var lightGray = 'rgb(114,104,92)';
+  var veryLightGray = 'rgb(128,118,106)';
+  var brown = 'rgb(73,34,0)';
+  var black = 'rgb(0,0,0)';
+  var white = 'rgb(255,255,255)';
+  var yellow = 'rgb(255,204,0)';
+  var lightYellow = 'rgb(255,255,140)';
+  var orange = 'rgb(212,85,0)';
+  var red = 'rgb(255,0,0)';
+  var lightRed = 'rgb(255,170,170)';
+  var darkRed = 'rgb(160,16,0)';
+  var face = 'rgb(255,204,153)';
+  var shade = 'rgba(0,0,0,0.2)';
+  var background = 'rgb(50,81,40)';
+  var lightBlue = 'rgb(122,148,201)';
+  var darkBlue = 'rgb(17,42,94)';
+  var pageBackground = 'rgb(246,221,174)';
   var bandana = red;
 
   var requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame ||
@@ -208,22 +206,22 @@
     }
 
     //Draw HUD
-    ctx.textAlign = "left";
-    ctx.font = "bold 12pt Arial Black";
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 12pt Arial Black';
 
     if(players[0] != null) {
       rect(50,0,50,40, darkGreen);
       rect(150,0,50,40, darkGreen);
       ctx.fillStyle = pageBackground;
-      ctx.fillText("x" + players[0].bombs, 50, 22);
-      ctx.fillText("x" + players[0].explosionSize, 150, 22);
+      ctx.fillText('x' + players[0].bombs, 50, 22);
+      ctx.fillText('x' + players[0].explosionSize, 150, 22);
     }
     if(players[1] != null) {
       rect(650,0,50,40, darkGreen);
       rect(750,0,50,40, darkGreen);
       ctx.fillStyle = pageBackground;
-      ctx.fillText("x" + players[1].bombs, 650, 22);
-      ctx.fillText("x" + players[1].explosionSize, 750, 22);
+      ctx.fillText('x' + players[1].bombs, 650, 22);
+      ctx.fillText('x' + players[1].explosionSize, 750, 22);
     }
 
     //Draw border
@@ -237,10 +235,10 @@
 
     if(gameMode != Mode.MULTI_VERSUS && enemies.length == 0) {
       //Draw game won if no enemies are left (coop/single player) or opponent is dead (versus)
-      ctx.font = "bold 72pt Arial Black";
-      ctx.textAlign = "center";
+      ctx.font = 'bold 72pt Arial Black';
+      ctx.textAlign = 'center';
       ctx.fillStyle = lightBlue;
-      ctx.fillText("GAME WON", 400, 240);
+      ctx.fillText('GAME WON', 400, 240);
 
       player.moving = false;
       player.wasMoving = player.wasMoving;
@@ -253,16 +251,16 @@
       window.setTimeout(initBombJs, 3000);
     } else if(dead && lastUpdate - dead > 1000) {
       //Draw game over if we are dead after 1000 ms
-      ctx.font = "bold 72pt Arial Black";
-      ctx.textAlign = "center";
+      ctx.font = 'bold 72pt Arial Black';
+      ctx.textAlign = 'center';
       ctx.fillStyle = darkRed;
-      ctx.fillText("GAME OVER", 400, 240);
+      ctx.fillText('GAME OVER', 400, 240);
 
       if(gameMode == Mode.MULTI_VERSUS) {
-        ctx.font = "bold 48pt Arial Black";
-        ctx.textAlign = "center";
+        ctx.font = 'bold 48pt Arial Black';
+        ctx.textAlign = 'center';
         ctx.fillStyle = darkRed;
-        ctx.fillText("Player " + (players[0]!=null && !players[0].dead ? "1" : "2") + " won", 400, 340);        
+        ctx.fillText('Player ' + (players[0]!=null && !players[0].dead ? '1' : '2') + ' won', 400, 340);        
       }
     }
 
@@ -414,7 +412,7 @@
   function PlayerField(x, y, sprite) {
     this.sprite = sprite;
     Sprite.call(this, x, y, function() { 
-       //rect(0,0,40,40,darkBlue);
+       rect(0,0,40,40,darkBlue);
     });
   }
   PlayerField.prototype = new SpriteField();
@@ -1240,8 +1238,8 @@
     roundedRect(6,6,28,28,4,lingrad);
 
     //Draw text
-    ctx.textAlign = "center";
-    ctx.font = "bold 10pt Arial";
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 10pt Arial';
     ctx.fillStyle = darkGray;
     ctx.fillText(label, 19, 25);
 
@@ -1596,6 +1594,7 @@
     //Set up player
     players = new Array();
     var player = new Ninja(0, 0);
+    field[0][0] = new PlayerField(0, 0);
     player.bombs = 1;
     player.plantedBombs = 0;
     player.explosionSize = 1;   
@@ -1604,6 +1603,7 @@
     //Set up second player if necessary
     if(gameMode != Mode.SINGLE_PLAYER) {
       player = new Ninja(width - 1, height - 1);
+      field[width - 1, height - 1] = new PlayerField(0, 0);
       player.bombs = 1;
       player.plantedBombs = 0;
       player.explosionSize = 1;   
@@ -1689,14 +1689,14 @@
     drawCorner(20, 440, Math.PI*1.5);
 
     //Draw text
-    ctx.textAlign = "left";
-    ctx.font = "bold 12pt Arial Black";
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 12pt Arial Black';
     ctx.fillStyle = pageBackground;
 
-    ctx.fillText("Single Player", 8*40, 5*40-13);
-    ctx.fillText("2-Player Coop", 8*40, 6*40-13);
-    ctx.fillText("2-Player Versus", 8*40, 7*40-13);
-    ctx.fillText("Controls/Tutorial", 8*40, 8*40-13);
+    ctx.fillText('Single Player', 8*40, 5*40-13);
+    ctx.fillText('2-Player Coop', 8*40, 6*40-13);
+    ctx.fillText('2-Player Versus', 8*40, 7*40-13);
+    ctx.fillText('Controls/Tutorial', 8*40, 8*40-13);
 
     //Draw selector bomb
     if(selectorBomb != null) {
@@ -1722,42 +1722,42 @@
     drawCorner(20, 440, Math.PI*1.5);
 
     //Draw text
-    ctx.textAlign = "left";
-    ctx.font = "bold 12pt Arial Black";
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 12pt Arial Black';
     ctx.fillStyle = pageBackground;
 
-    ctx.fillText("Player 1 Controls", 1*40, 2*40-13);
-    ctx.fillText("Player 2 Controls", 1*40, 7*40-13);
-    ctx.fillText("Upgrades", 13*40, 2*40-13);
+    ctx.fillText('Player 1 Controls', 1*40, 2*40-13);
+    ctx.fillText('Player 2 Controls', 1*40, 7*40-13);
+    ctx.fillText('Upgrades', 13*40, 2*40-13);
 
     //Draw labels
-    ctx.textAlign = "center";
-    ctx.font = "10pt Arial";
+    ctx.textAlign = 'center';
+    ctx.font = '10pt Arial';
 
-    ctx.fillText("Movement", 2*40 + 20, 5*40-20);
-    ctx.fillText("Movement", 2*40 + 20, 10*40-20);
+    ctx.fillText('Movement', 2*40 + 20, 5*40-20);
+    ctx.fillText('Movement', 2*40 + 20, 10*40-20);
 
-    ctx.textAlign = "left";
-    ctx.fillText("Trigger Bomb (only with Trigger upgrade)", 6*40 + 5, 3*40-16);
-    ctx.fillText("Trigger Bomb (only with Trigger upgrade)", 6*40 + 5, 8*40-16);
-    ctx.fillText("Plant Bomb", 7*40 + 30, 4*40-16);
-    ctx.fillText("Plant Bomb", 6*40 + 5, 9*40-16);
+    ctx.textAlign = 'left';
+    ctx.fillText('Trigger Bomb (only with Trigger upgrade)', 6*40 + 5, 3*40-16);
+    ctx.fillText('Trigger Bomb (only with Trigger upgrade)', 6*40 + 5, 8*40-16);
+    ctx.fillText('Plant Bomb', 7*40 + 30, 4*40-16);
+    ctx.fillText('Plant Bomb', 6*40 + 5, 9*40-16);
 
     //Draw keys
-    drawKey(2,2,"W");
-    drawKey(1,3,"A");
-    drawKey(2,3,"S");
-    drawKey(3,3,"D");
+    drawKey(2,2,'W');
+    drawKey(1,3,'A');
+    drawKey(2,3,'S');
+    drawKey(3,3,'D');
 
-    drawKey(5,2,"V");
+    drawKey(5,2,'V');
 
-    drawKey(2,7,"↑");
-    drawKey(1,8,"←");
-    drawKey(2,8,"↓");
-    drawKey(3,8,"→");
+    drawKey(2,7,'↑');
+    drawKey(1,8,'←');
+    drawKey(2,8,'↓');
+    drawKey(3,8,'→');
 
-    drawKey(5,7,"Ctrl");
-    drawKey(5,8,"Alt");
+    drawKey(5,7,'Ctrl');
+    drawKey(5,8,'Alt');
 
     //Draw space
     ctx.save();
@@ -1781,20 +1781,20 @@
     }
 
     //Draw upgrade descriptions
-    ctx.fillText("Extra Bomb", 14*40 + 5, 3*40-16);
-    ctx.fillText("Increase explosion size", 14*40 + 5, 4*40-16);
-    ctx.fillText("Faster movement", 14*40 + 5, 5*40-16);
-    ctx.fillText("Walk through trees", 14*40 + 5, 6*40-16);
-    ctx.fillText("Trigger bombs", 14*40 + 5, 7*40-16);
-    ctx.fillText("Kick bombs", 14*40 + 5, 8*40-16);
+    ctx.fillText('Extra Bomb', 14*40 + 5, 3*40-16);
+    ctx.fillText('Increase explosion size', 14*40 + 5, 4*40-16);
+    ctx.fillText('Faster movement', 14*40 + 5, 5*40-16);
+    ctx.fillText('Walk through trees', 14*40 + 5, 6*40-16);
+    ctx.fillText('Trigger bombs', 14*40 + 5, 7*40-16);
+    ctx.fillText('Kick bombs', 14*40 + 5, 8*40-16);
 
     //Draw separator
     path([ [500,50], [500,400] ], pageBackground, true, 2);
 
     //Draw labels
-    ctx.textAlign = "center";
-    ctx.font = "bold 14pt Arial Black";
-    ctx.fillText("Return by pressing space", 400, 450);
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 14pt Arial Black';
+    ctx.fillText('Return by pressing space', 400, 450);
   }
 
   function selectEntry() {
@@ -1859,18 +1859,18 @@
     var binString = atob(song);
     var modFile = new ModFile(binString);
     var modPlayer = new ModPlayer(modFile, 44100);
-    var bufferLength = 44100 * 5;
-    var soundURL = synth['getWave'](modPlayer.getSamples(bufferLength), bufferLength);
+    var bufferLength = 44100 * 5 * 2;
+    var soundURL = synth['getWave'](modPlayer.getSamples(bufferLength), bufferLength, 2);
     var audio = new Audio();
     audio.src = soundURL;
     audio.play();
 
     //Initialize sounds
-    movingSound = initializeSound("0,0.09,0.18,0.2,0.2907,0.0996,,-0.82,-0.8945,-0.466,0.04,0.02,0.22,0.84,-0.0038,0.5484,-0.0768,0.4759,0.9999,0.7727,0.2592,0.0002,-0.986,0.4");
+    movingSound = initializeSound('0,0.09,0.18,0.2,0.2907,0.0996,,-0.82,-0.8945,-0.466,0.04,0.02,0.22,0.84,-0.0038,0.5484,-0.0768,0.4759,0.9999,0.7727,0.2592,0.0002,-0.986,0.4');
     movingSound.loop = true;
-    explosionSound = initializeSound("3,,0.1572,0.3281,0.422,0.0723,,0.0993,,,,,,,,0.4485,,,1,,,,,0.5");
-    plantSound = initializeSound("0,,0.0589,,0.2623,0.269,,-0.3668,,,,,,0.5726,,,,,1,,,,,0.5");
-    upgradeSound = initializeSound("0,,0.2524,,0.442,0.18,,0.4331,,,,,,0.2551,,0.5655,,,1,,,,,0.5");
+    explosionSound = initializeSound('3,,0.1572,0.3281,0.422,0.0723,,0.0993,,,,,,,,0.4485,,,1,,,,,0.5');
+    plantSound = initializeSound('0,,0.0589,,0.2623,0.269,,-0.3668,,,,,,0.5726,,,,,1,,,,,0.5');
+    upgradeSound = initializeSound('0,,0.2524,,0.442,0.18,,0.4331,,,,,,0.2551,,0.5655,,,1,,,,,0.5');
 
     //Set up key listener
     keyListener = function(e) {

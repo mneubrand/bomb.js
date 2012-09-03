@@ -589,7 +589,8 @@ function ModPlayer(mod, rate) {
       }
 
       samples[i] = parseInt(32000.0 * leftOutputLevel / (128 * 128 * mod.channelCount));
-      i++;
+      samples[i+1] = parseInt(32000.0 * rightOutputLevel / (128 * 128 * mod.channelCount));
+      i+=2;
     }
     
     return samples;

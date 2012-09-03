@@ -3,14 +3,14 @@
  * 
  * Copyright 2010 Thomas Vian
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
+ * Licensed under the Apache License, Version 2.0 (the 'License');
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
+ * distributed under the License is distributed on an 'AS IS' BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
@@ -31,7 +31,7 @@ function SfxrParams() {
    */
   this.setSettingsString = function setSettingsString(string)
   {
-    var values = string.split(",");
+    var values = string.split(',');
     this.waveType =         parseInt(values[0]) || 0;
     this.attackTime =        parseFloat(values[1]) || 0;
     this.sustainTime =        parseFloat(values[2]) || 0;
@@ -65,14 +65,14 @@ function SfxrParams() {
  * 
  * Copyright 2010 Thomas Vian
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
+ * Licensed under the Apache License, Version 2.0 (the 'License');
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
+ * distributed under the License is distributed on an 'AS IS' BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
@@ -493,21 +493,22 @@ SfxrSynth.prototype.getSfx = function(str) {
 }
 
 // Adapted from http://html5-demos.appspot.com/static/html5-whats-new/template/index.html#31
-SfxrSynth.prototype.getWave = function(samples, length) {
+SfxrSynth.prototype.getWave = function(samples, length, channels) {
+  var channels = channels || 1;
   // Initialize header
   var header = new Uint8Array([
-    0x52,0x49,0x46,0x46, // "RIFF"
+    0x52,0x49,0x46,0x46, // 'RIFF'
     0, 0, 0, 0,          // put total size here
-    0x57,0x41,0x56,0x45, // "WAVE"
-    0x66,0x6d,0x74,0x20, // "fmt "
+    0x57,0x41,0x56,0x45, // 'WAVE'
+    0x66,0x6d,0x74,0x20, // 'fmt '
     16,0,0,0,            // size of the following
     1, 0,                // PCM format
-    1, 0,                // Mono: 1 channel
+    channels, 0,                // Mono: 1 channel
     0x44,0xAC,0,0,       // 44,100 samples per second
     0x88,0x58,0x01,0,    // byte rate: two bytes per sample
     2, 0,                // aligned on every two bytes
     16, 0,               // 16 bits per sample
-    0x64,0x61,0x74,0x61, // "data"
+    0x64,0x61,0x74,0x61, // 'data'
     0, 0, 0, 0           // put number of samples here
   ]);  // Note: we just want the ArrayBuffer.
 
@@ -516,7 +517,7 @@ SfxrSynth.prototype.getWave = function(samples, length) {
   dv[1] = 36 + soundLength;
   dv[10] = soundLength;
 
-  var blob = new Blob([header.buffer, samples.subarray(0, length-1).buffer], { "type" : "audio/wav" });
+  var blob = new Blob([header.buffer, samples.subarray(0, length-1).buffer], { 'type' : 'audio/wav' });
   
   var url = window.URL || window.webkitURL;
   return url.createObjectURL(blob);
