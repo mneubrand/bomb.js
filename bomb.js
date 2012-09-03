@@ -22,6 +22,9 @@
  * Good luck to anybody who tries to decipher it.
  * May the semicolons be with you...
  */
+var w = window;
+var d = document;
+
 (function() {
   //Colors
   var darkGreen = 'rgb(0,49,0)';
@@ -49,8 +52,8 @@
   var pageBackground = 'rgb(246,221,174)';
   var bandana = red;
 
-  var requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame ||
-      window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
+  var requestAnimationFrame = w.requestAnimationFrame || window.mozRequestAnimationFrame ||
+      w.webkitRequestAnimationFrame;
 
   //Constants
   var width = 19;
@@ -243,11 +246,11 @@
       player.wasMoving = player.wasMoving;
 
       //Disable controls
-      window.onkeydown = null;
-      window.onkeyup = null;
+      w.onkeydown = null;
+      w.onkeyup = null;
       keys = new Array(4);
 
-      window.setTimeout(initBombJs, 3000);
+      w.setTimeout(initBombJs, 3000);
     } else if(dead && lastUpdate - dead > 1000) {
       //Draw game over if we are dead after 1000 ms
       ctx.font = 'bold 72pt Arial Black';
@@ -353,11 +356,11 @@
       dead = lastUpdate;
 
       //Disable controls
-      window.onkeydown = null;
-      window.onkeyup = null;
+      w.onkeydown = null;
+      w.onkeyup = null;
       keys = new Array(4);
   
-      window.setTimeout(initBombJs, 3000);
+      w.setTimeout(initBombJs, 3000);
     }
   }
 
@@ -1501,9 +1504,6 @@
     enemies = new Array();
     dead = null;
 
-    //Get context
-    ctx = document.getElementById('c').getContext('2d');
-
     //Clear canvas
     rect(20, 40, 760, 440, background);
 
@@ -1659,8 +1659,8 @@
           break;
       }
     };
-    window.onkeyup = keyListener;
-    window.onkeydown = keyListener;
+    w.onkeyup = keyListener;
+    w.onkeydown = keyListener;
 
     //Set up game loop
     requestAnimationFrame(step);
@@ -1671,8 +1671,6 @@
       return;
     }
 
-    //Get context
-    ctx = document.getElementById('c').getContext('2d');
 
     ctx.save();
 
@@ -1707,8 +1705,6 @@
   }
 
   function initControls() {
-    //Get context
-    ctx = document.getElementById('c').getContext('2d');
     ctx.save();
 
     //Clear canvas
@@ -1827,7 +1823,7 @@
 
     if(selectorBomb.y == 7) {
       controlsDisplayed = true;
-      window.setTimeout(function() {
+      w.setTimeout(function() {
         initControls();
       }, 500);
     } else {
@@ -1838,9 +1834,9 @@
       } else if(selectorBomb.y == 6) {
         gameMode = Mode.MULTI_VERSUS;       
       }
-      window.removeEventListener('keyup', keyListener);
+      w.removeEventListener('keyup', keyListener);
       selectorBomb = null;
-      window.setTimeout(initBombJs, 500);
+      w.setTimeout(initBombJs, 500);
     }
     explosionSound.play();
   }
@@ -1852,8 +1848,11 @@
     return audio;
   }
 
-  window.onload = function() {
+  w.onload = function() {
     synth = new window['SfxrSynth']();
+
+    //Get context
+    ctx = d.getElementById('c').getContext('2d');
 
     var binString = atob(song);
     var modFile = new ModFile(binString);
@@ -1889,7 +1888,7 @@
           break;
       }
     };
-    window.onkeyup = keyListener;
+    w.onkeyup = keyListener;
 
     selectorBomb = new Sprite(7, 4);
     initMenu();

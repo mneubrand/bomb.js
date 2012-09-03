@@ -32,30 +32,31 @@ function SfxrParams() {
   this.setSettingsString = function setSettingsString(string)
   {
     var values = string.split(',');
-    this.waveType =         parseInt(values[0]) || 0;
-    this.attackTime =        parseFloat(values[1]) || 0;
-    this.sustainTime =        parseFloat(values[2]) || 0;
-    this.sustainPunch =      parseFloat(values[3]) || 0;
-    this.decayTime =        parseFloat(values[4]) || 0;
-    this.startFrequency =      parseFloat(values[5]) || 0;
-    this.minFrequency =      parseFloat(values[6]) || 0;
-    this.slide =          parseFloat(values[7]) || 0;
-    this.deltaSlide =        parseFloat(values[8]) || 0;
-    this.vibratoDepth =      parseFloat(values[9]) || 0;
-    this.vibratoSpeed =      parseFloat(values[10]) || 0;
-    this.changeAmount =      parseFloat(values[11]) || 0;
-    this.changeSpeed =        parseFloat(values[12]) || 0;
-    this.squareDuty =        parseFloat(values[13]) || 0;
-    this.dutySweep =        parseFloat(values[14]) || 0;
-    this.repeatSpeed =        parseFloat(values[15]) || 0;
-    this.phaserOffset =      parseFloat(values[16]) || 0;
-    this.phaserSweep =        parseFloat(values[17]) || 0;
-    this.lpFilterCutoff =      parseFloat(values[18]) || 0;
-    this.lpFilterCutoffSweep =    parseFloat(values[19]) || 0;
-    this.lpFilterResonance =    parseFloat(values[20]) || 0;
-    this.hpFilterCutoff =      parseFloat(values[21]) || 0;
-    this.hpFilterCutoffSweep =    parseFloat(values[22]) || 0;
-    this.masterVolume =       parseFloat(values[23]) || 0;
+    var a = this;
+    a.waveType =         parseInt(values[0]) || 0;
+    a.attackTime =        parseFloat(values[1]) || 0;
+    a.sustainTime =        parseFloat(values[2]) || 0;
+    a.sustainPunch =      parseFloat(values[3]) || 0;
+    a.decayTime =        parseFloat(values[4]) || 0;
+    a.startFrequency =      parseFloat(values[5]) || 0;
+    a.minFrequency =      parseFloat(values[6]) || 0;
+    a.slide =          parseFloat(values[7]) || 0;
+    a.deltaSlide =        parseFloat(values[8]) || 0;
+    a.vibratoDepth =      parseFloat(values[9]) || 0;
+    a.vibratoSpeed =      parseFloat(values[10]) || 0;
+    a.changeAmount =      parseFloat(values[11]) || 0;
+    a.changeSpeed =        parseFloat(values[12]) || 0;
+    a.squareDuty =        parseFloat(values[13]) || 0;
+    a.dutySweep =        parseFloat(values[14]) || 0;
+    a.repeatSpeed =        parseFloat(values[15]) || 0;
+    a.phaserOffset =      parseFloat(values[16]) || 0;
+    a.phaserSweep =        parseFloat(values[17]) || 0;
+    a.lpFilterCutoff =      parseFloat(values[18]) || 0;
+    a.lpFilterCutoffSweep =    parseFloat(values[19]) || 0;
+    a.lpFilterResonance =    parseFloat(values[20]) || 0;
+    a.hpFilterCutoff =      parseFloat(values[21]) || 0;
+    a.hpFilterCutoffSweep =    parseFloat(values[22]) || 0;
+    a.masterVolume =       parseFloat(values[23]) || 0;
   }   
   
 }
@@ -519,11 +520,11 @@ SfxrSynth.prototype.getWave = function(samples, length, channels) {
 
   var blob = new Blob([header.buffer, samples.subarray(0, length-1).buffer], { 'type' : 'audio/wav' });
   
-  var url = window.URL || window.webkitURL;
+  var url = w.URL || w.webkitURL;
   return url.createObjectURL(blob);
 }
 
 //Exports for Closure
-window['SfxrSynth'] = SfxrSynth; // <-- Constructor
+w['SfxrSynth'] = SfxrSynth; // <-- Constructor
 SfxrSynth.prototype['getWave'] = SfxrSynth.prototype.getWave;
 SfxrSynth.prototype['getSfx'] = SfxrSynth.prototype.getSfx;

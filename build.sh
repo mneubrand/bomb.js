@@ -5,12 +5,11 @@ rm -rf out
 mkdir out
 
 # Compress JavaScript and HTML
-cat jsmodplayer.js song.js jsfxr.js bomb.js > out/concat.js
+cat bomb.js jsmodplayer.js song.js jsfxr.js > out/concat.js
 java -jar compiler.jar --compilation_level ADVANCED_OPTIMIZATIONS --js out/concat.js --js_output_file out/closure.js
 uglifyjs -mt -nc --unsafe --max-line-len 0 -o out/bomb.js out/closure.js
-sed -i "s/\"/'/g" out/bomb.js
+cp index.html out/index.html
 #uglifyjs -mt -nc --unsafe --max-line-len 0 -o out/bomb.js out/concat.js
-java -jar htmlcompressor-1.5.3.jar --type html -o out/index.html index.html
 
 # Zip resources
 cd out
