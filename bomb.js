@@ -108,6 +108,7 @@ var d = document;
   var plantSound;
   var upgradeSound;
   var movingSound;
+  var bgAudio;
 
   //Main game loop
   function step() {
@@ -255,8 +256,8 @@ var d = document;
       player.wasMoving = player.wasMoving;
 
       //Disable controls
-      w.onkeydown = null;
-      w.onkeyup = null;
+      d.onkeydown = null;
+      d.onkeyup = null;
       keys = new Array(4);
 
       w.setTimeout(initBombJs, 3000);
@@ -366,8 +367,8 @@ var d = document;
       dead = lastUpdate;
 
       //Disable controls
-      w.onkeydown = null;
-      w.onkeyup = null;
+      d.onkeydown = null;
+      d.onkeyup = null;
       keys = new Array(4);
   
       w.setTimeout(initBombJs, 3000);
@@ -435,9 +436,9 @@ var d = document;
 
   function Bomb(x, y, player) {
     MovingSprite.call(this, x, y);
-    this.scale = 0;
     this.moveTime = 250;
     this.player = player;
+    this.scale = 0;
     this.draw = function() {
       ctx.translate(2,2);
 
@@ -452,8 +453,10 @@ var d = document;
 
       //Animate bomb scale
       this.scale++;
-      var x = (this.scale%30)/30; //between 0-29
-      var scaleFactor = 1.0 + 0.1 * (x > 15 ? 30-x : x);
+      var scaleFactor = 1.0 + (0.1 * this.scale/20);
+      if(this.scale>20) {
+        this.scale=0;
+      }
       ctx.scale(scaleFactor, scaleFactor);
 
       //Animate spark with 0.25 sec between 2 keyframes
@@ -1625,52 +1628,68 @@ var d = document;
       switch(e.keyCode) {
         case 38: //up arrow
           keys2[Direction.NORTH] = pressed ? e.timeStamp : 0;
-          break;
+          e.preventDefault(); 
+          return false;
         case 87: //w
           keys[Direction.NORTH] = pressed ? e.timeStamp : 0;
-          break;
+          e.preventDefault(); 
+          return false;
         case 39: //right arrow
           keys2[Direction.EAST] = pressed ? e.timeStamp : 0;
-          break;
+          e.preventDefault(); 
+          return false;
         case 68: //d
           keys[Direction.EAST] = pressed ? e.timeStamp : 0;
-          break;
+          e.preventDefault(); 
+          return false;
         case 40: //down arrow
           keys2[Direction.SOUTH] = pressed ? e.timeStamp : 0;
-          break;
+          e.preventDefault(); 
+          return false;
         case 83: //s
           keys[Direction.SOUTH] = pressed ? e.timeStamp : 0;
-          break;
+          e.preventDefault(); 
+          return false;
         case 37: //left arrow
           keys2[Direction.WEST] = pressed ? e.timeStamp : 0;
-          break;
+          e.preventDefault(); 
+          return false;
         case 65: //a
           keys[Direction.WEST] = pressed ? e.timeStamp : 0;
-          break;
+          e.preventDefault(); 
+          return false;
         case 32: //space
           if(players[0]) {
             plantBomb(players[0]);
           }
-          break;
+          e.preventDefault(); 
+          return false;
         case 86: //v
           if(players[0]) {
             triggerBombs(players[0]);
           }
-          break;
+          e.preventDefault(); 
+          return false;
         case 18: //alt
           if(players[1]) {
             plantBomb(players[1]);
           }
-          break;
+          e.preventDefault(); 
+          return false;
         case 17: //ctrl
           if(players[1]) {
             triggerBombs(players[1]);
           }
-          break;
+          e.preventDefault(); 
+          return false;
+        case 77: //m
+          toggleMusic();
+          e.preventDefault(); 
+          return false;
       }
     };
-    w.onkeyup = keyListener;
-    w.onkeydown = keyListener;
+    d.onkeyup = keyListener;
+    d.onkeydown = keyListener;
 
     //Set up game loop
     requestAnimationFrame(step);
@@ -1858,6 +1877,14 @@ var d = document;
     return audio;
   }
 
+  function toggleMusic() {
+    if(bgAudio.paused) {
+      bgAudio.play();
+    } else {
+      bgAudio.pause();
+    }
+  }
+
   w.onload = function() {
     //Surround with try/catch cause they won't work everywhere
     try {
@@ -1871,10 +1898,10 @@ var d = document;
       var modPlayer = new ModPlayer(modFile, 44100);
       var bufferLength = 44100 * 42 * 2;
       var soundURL = synth['getWave'](modPlayer.getSamples(bufferLength), bufferLength, 2);
-      var audio = new Audio();
-      audio.src = soundURL;
-      audio.loop = true;
-      audio.play();
+      bgAudio = new Audio();
+      bgAudio.src = soundURL;
+      bgAudio.loop = true;
+      bgAudio.play();
 
       //Initialize sounds
       movingSound = initializeSound('0,,0.0532,,0.1459,0.4123,,-0.6521,,,,,,0.3961,,,,,1,,,0.0584,,0.4');
@@ -1899,18 +1926,25 @@ var d = document;
         case 87: //w
           selectorBomb.y--;
           if(selectorBomb.y < 4) { selectorBomb.y = 7; }
-          break;
+          e.preventDefault(); 
+          return false;
         case 40: //down arrow
         case 83: //s
           selectorBomb.y++;
           if(selectorBomb.y > 7) { selectorBomb.y = 4; }
-          break;
+          e.preventDefault(); 
+          return false;
         case 32: //space
           selectEntry();
-          break;
+          e.preventDefault(); 
+          return false;
+        case 77: //m
+          toggleMusic();
+          e.preventDefault(); 
+          return false;
       }
     };
-    w.onkeyup = keyListener;
+    d.onkeyup = keyListener;
 
     selectorBomb = new Sprite(7, 4);
     initMenu();

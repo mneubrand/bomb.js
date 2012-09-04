@@ -1,2 +1,0 @@
-- Explosion drawing on top
-- Weird bomb animation
