@@ -260,7 +260,10 @@ var d = document;
       d.onkeyup = null;
       keys = new Array(4);
 
-      w.setTimeout(initBombJs, 3000);
+      if(enemies != null) {
+        enemies = null;
+        w.setTimeout(initBombJs, 1500);
+      }
     } else if(dead && lastUpdate - dead > 1000) {
       //Draw game over if we are dead after 1000 ms
       ctx.font = 'bold 72pt Arial Black';
@@ -1683,7 +1686,9 @@ var d = document;
           e.preventDefault(); 
           return false;
         case 77: //m
-          toggleMusic();
+          if(!pressed) {
+            toggleMusic();
+          }
           e.preventDefault(); 
           return false;
       }
@@ -1886,12 +1891,12 @@ var d = document;
   }
 
   w.onload = function() {
+    //Get context
+    ctx = d.getElementById('c').getContext('2d');
+
     //Surround with try/catch cause they won't work everywhere
     try {
       synth = new window['SfxrSynth']();
-
-      //Get context
-      ctx = d.getElementById('c').getContext('2d');
 
       var binString = atob(song);
       var modFile = new ModFile(binString);
@@ -1911,12 +1916,13 @@ var d = document;
       upgradeSound = initializeSound('0,,0.2524,,0.442,0.18,,0.4331,,,,,,0.2551,,0.5655,,,1,,,,,0.5');
       dieSound = initializeSound('0,,0.0119,,0.63,0.1,,0.1163,,,,,,0.1669,,0.7294,,,1,,,,,0.6');
     } catch(e) {
-      var dummy = { play : function() {} };
+      var dummy = { play : function() {}, pause: function() {} };
       movingSound = dummy;
       explosionSound = dummy;
       plantSound = dummy;
       upgradeSound = dummy;
       dieSound = dummy;
+      bgAudio = dummy;
     }
 
     //Set up key listener
