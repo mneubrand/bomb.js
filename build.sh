@@ -8,8 +8,9 @@ mkdir out
 cat bomb.js jsmodplayer.js song.js jsfxr.js > out/concat.js
 java -jar compiler.jar --compilation_level ADVANCED_OPTIMIZATIONS --js out/concat.js --js_output_file out/closure.js
 uglifyjs -mt -nc --unsafe --max-line-len 0 -o out/bomb.js out/closure.js
+#grunt
+cp prefix.js out/prefix.js
 cp index.html out/index.html
-#uglifyjs -mt -nc --unsafe --max-line-len 0 -o out/bomb.js out/concat.js
 
 # Zip resources
 cd out

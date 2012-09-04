@@ -1,4 +1,2 @@
 - Explosion drawing on top
 - Weird bomb animation
-- Players running into each other/Clearing PlayerField
-- Multiplayer

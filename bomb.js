@@ -27,33 +27,41 @@ var d = document;
 
 (function() {
   //Colors
-  var darkGreen = 'rgb(0,49,0)';
-  var lightGreen = 'rgb(0,59,0)';
-  var veryLightGreen = 'rgb(0,69,0)';
-  var darkGray = 'rgb(21,21,21)';
-  var ninja = 'rgb(32,32,32)';
-  var mediumGray = 'rgb(91, 82, 69)';
-  var lightGray = 'rgb(114,104,92)';
-  var veryLightGray = 'rgb(128,118,106)';
-  var brown = 'rgb(73,34,0)';
-  var black = 'rgb(0,0,0)';
-  var white = 'rgb(255,255,255)';
-  var yellow = 'rgb(255,204,0)';
-  var lightYellow = 'rgb(255,255,140)';
-  var orange = 'rgb(212,85,0)';
-  var red = 'rgb(255,0,0)';
-  var lightRed = 'rgb(255,170,170)';
-  var darkRed = 'rgb(160,16,0)';
-  var face = 'rgb(255,204,153)';
+  var darkGreen = '#003100';
+  var lightGreen = '#003b00';
+  var veryLightGreen = '#004500';
+  var darkGray = '#151515';
+  var ninja = '#202020';
+  var mediumGray = '#5b5245';
+  var lightGray = '#72685c';
+  var veryLightGray = '#80766a';
+  var brown = '#492200';
+  var black = '#000';
+  var white = '#fff';
+  var yellow = '#ffcc00';
+  var lightYellow = '#ffff8c';
+  var orange = '#d45500';
+  var red = '#ff0000';
+  var lightRed = '#ffaaaa';
+  var darkRed = '#a91000';
+  var face = '#ffcc99';
   var shade = 'rgba(0,0,0,0.2)';
-  var background = 'rgb(50,81,40)';
-  var lightBlue = 'rgb(122,148,201)';
-  var darkBlue = 'rgb(17,42,94)';
-  var pageBackground = 'rgb(246,221,174)';
+  var background = '#325128';
+  var lightBlue = '#7a94c9';
+  var darkBlue = '#112a5e';
+  var pageBackground = '#f6ddae';
   var bandana = red;
 
-  var requestAnimationFrame = w.requestAnimationFrame || window.mozRequestAnimationFrame ||
-      w.webkitRequestAnimationFrame;
+  var requestAnimationFrame = (function(){
+    return window.requestAnimationFrame  || 
+      window.webkitRequestAnimationFrame || 
+      window.mozRequestAnimationFrame    || 
+      window.oRequestAnimationFrame      || 
+      window.msRequestAnimationFrame     || 
+      function(callback){
+        window.setTimeout(callback, 1000 / 60);
+      };
+  })();
 
   //Constants
   var width = 19;
@@ -95,7 +103,8 @@ var d = document;
 
   //Sounds
   var synth;
-  var explosionSound
+  var explosionSound;
+  var dieSound;
   var plantSound;
   var upgradeSound;
   var movingSound;
@@ -337,6 +346,7 @@ var d = document;
   function die(player) {
     //Kill player
     if(!player.dead) {
+      dieSound.play();
       player.dead = lastUpdate;
       player.moving = false;
       player.wasMoving = player.wasMoving;
@@ -414,7 +424,6 @@ var d = document;
   function PlayerField(x, y, sprite) {
     this.sprite = sprite;
     Sprite.call(this, x, y, function() { 
-       rect(0,0,40,40,darkBlue);
     });
   }
   PlayerField.prototype = new SpriteField();
@@ -564,6 +573,7 @@ var d = document;
     MovingSprite.call(this, x, y);
     this.direction = Direction.SOUTH;
     this.die = function() {
+      dieSound.play();
       var disappear = new DisappearingSprite(this.x, this.y, this.drawDead);
       disappear.offset = this.offset;
       sprites.push(disappear);
@@ -1849,26 +1859,38 @@ var d = document;
   }
 
   w.onload = function() {
-    synth = new window['SfxrSynth']();
+    //Surround with try/catch cause they won't work everywhere
+    try {
+      synth = new window['SfxrSynth']();
 
-    //Get context
-    ctx = d.getElementById('c').getContext('2d');
+      //Get context
+      ctx = d.getElementById('c').getContext('2d');
 
-    var binString = atob(song);
-    var modFile = new ModFile(binString);
-    var modPlayer = new ModPlayer(modFile, 44100);
-    var bufferLength = 44100 * 5 * 2;
-    var soundURL = synth['getWave'](modPlayer.getSamples(bufferLength), bufferLength, 2);
-    var audio = new Audio();
-    audio.src = soundURL;
-    audio.play();
+      var binString = atob(song);
+      var modFile = new ModFile(binString);
+      var modPlayer = new ModPlayer(modFile, 44100);
+      var bufferLength = 44100 * 42 * 2;
+      var soundURL = synth['getWave'](modPlayer.getSamples(bufferLength), bufferLength, 2);
+      var audio = new Audio();
+      audio.src = soundURL;
+      audio.loop = true;
+      audio.play();
 
-    //Initialize sounds
-    movingSound = initializeSound('0,0.09,0.18,0.2,0.2907,0.0996,,-0.82,-0.8945,-0.466,0.04,0.02,0.22,0.84,-0.0038,0.5484,-0.0768,0.4759,0.9999,0.7727,0.2592,0.0002,-0.986,0.4');
-    movingSound.loop = true;
-    explosionSound = initializeSound('3,,0.1572,0.3281,0.422,0.0723,,0.0993,,,,,,,,0.4485,,,1,,,,,0.5');
-    plantSound = initializeSound('0,,0.0589,,0.2623,0.269,,-0.3668,,,,,,0.5726,,,,,1,,,,,0.5');
-    upgradeSound = initializeSound('0,,0.2524,,0.442,0.18,,0.4331,,,,,,0.2551,,0.5655,,,1,,,,,0.5');
+      //Initialize sounds
+      movingSound = initializeSound('0,,0.0532,,0.1459,0.4123,,-0.6521,,,,,,0.3961,,,,,1,,,0.0584,,0.4');
+      movingSound.loop = true;
+      explosionSound = initializeSound('3,,0.1572,0.3281,0.422,0.0723,,0.0993,,,,,,,,0.4485,,,1,,,,,0.5');
+      plantSound = initializeSound('0,,0.0589,,0.2623,0.269,,-0.3668,,,,,,0.5726,,,,,1,,,,,0.5');
+      upgradeSound = initializeSound('0,,0.2524,,0.442,0.18,,0.4331,,,,,,0.2551,,0.5655,,,1,,,,,0.5');
+      dieSound = initializeSound('0,,0.0119,,0.63,0.1,,0.1163,,,,,,0.1669,,0.7294,,,1,,,,,0.6');
+    } catch(e) {
+      var dummy = { play : function() {} };
+      movingSound = dummy;
+      explosionSound = dummy;
+      plantSound = dummy;
+      upgradeSound = dummy;
+      dieSound = dummy;
+    }
 
     //Set up key listener
     keyListener = function(e) {

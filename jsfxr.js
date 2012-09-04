@@ -122,22 +122,12 @@ function SfxrSynth() {
   var _deltaSlide;            // Change in slide
   var _minFreqency;          // Minimum frequency before stopping
   
-  var _vibratoPhase;          // Phase through the vibrato sine wave
-  var _vibratoSpeed;          // Speed at which the vibrato phase moves
-  var _vibratoAmplitude;        // Amount to change the period of the wave by at the peak of the vibrato wave
-  
   var _changeAmount;          // Amount to change the note by
   var _changeTime;            // Counter for the note change
   var _changeLimit;            // Once the time reaches this limit, the note changes
   
   var _squareDuty;            // Offset of center switching point in the square wave
   var _dutySweep;            // Amount to change the duty by
-  
-  var _phaser;            // If the phaser is active
-  var _phaserOffset;          // Phase offset for phaser effect
-  var _phaserDeltaOffset;        // Change in phase offset
-  var _phaserPos;              // Position through the phaser buffer
-  var _phaserBuffer;      // Buffer of wave values used to create the out of phase second wave
   
   var _filters;            // If the filters are active
   var _lpFilterDeltaPos;        // Change in low-pass wave position, as allowed by the cutoff and damping
@@ -233,10 +223,6 @@ function SfxrSynth() {
       _hpFilterCutoff = p.hpFilterCutoff * p.hpFilterCutoff * 0.1;
       _hpFilterDeltaCutoff = 1.0 + p.hpFilterCutoffSweep * 0.0003;
       
-      _vibratoPhase = 0.0;
-      _vibratoSpeed = p.vibratoSpeed * p.vibratoSpeed * 0.01;
-      _vibratoAmplitude = p.vibratoDepth * 0.5;
-      
       _envelopeVolume = 0.0;
       _envelopeStage = 0;
       _envelopeTime = 0;
@@ -250,25 +236,10 @@ function SfxrSynth() {
       _envelopeOverLength1 = 1.0 / _envelopeLength1;
       _envelopeOverLength2 = 1.0 / _envelopeLength2;
       
-      _phaser = p.phaserOffset != 0.0 || p.phaserSweep != 0.0;
-      
-      _phaserOffset = p.phaserOffset * p.phaserOffset * 1020.0;
-      if(p.phaserOffset < 0.0) {
-       _phaserOffset = -_phaserOffset;
-      }
-      _phaserDeltaOffset = p.phaserSweep * p.phaserSweep * p.phaserSweep * 0.2;
-      _phaserPos = 0;
-      
-      if(!_phaserBuffer) {
-        _phaserBuffer = new Array(1024);
-      }
       if(!_noiseBuffer) {
         _noiseBuffer = new Array(32);
       }
       
-      for(var i = 0; i < 1024; i++) {
-        _phaserBuffer[i] = 0.0;
-      }
       for(i = 0; i < 32; i++) {
         _noiseBuffer[i] = Math.random() * 2.0 - 1.0;
       }
@@ -322,11 +293,6 @@ function SfxrSynth() {
       
       _periodTemp = _period;
       
-      // Applies the vibrato effect
-      if(_vibratoAmplitude > 0.0) {
-        _vibratoPhase += _vibratoSpeed;
-        _periodTemp = _period * (1.0 + Math.sin(_vibratoPhase) * _vibratoAmplitude);
-      }
       
       _periodTemp = parseInt(_periodTemp);
       if(_periodTemp < 8) {
@@ -373,16 +339,6 @@ function SfxrSynth() {
            break;
       }
       
-      // Moves the phaser offset
-      if (_phaser) {
-        _phaserOffset += _phaserDeltaOffset;
-        _phaserInt = parseInt(_phaserOffset);
-        if(_phaserInt < 0) {
-          _phaserInt = -_phaserInt;
-        } else if (_phaserInt > 1023) {
-          _phaserInt = 1023;
-        }
-      }
       
       // Moves the high-pass filter cutoff
       if(_filters && _hpFilterDeltaCutoff != 0.0) {
@@ -414,15 +370,6 @@ function SfxrSynth() {
           case 0: // Square wave
             _sample = ((_phase / _periodTemp) < _squareDuty) ? 0.5 : -0.5;
             break;
-          case 1: // Saw wave
-            _sample = 1.0 - (_phase / _periodTemp) * 2.0;
-            break;
-          case 2: // Sine wave (fast and accurate approx)
-            _pos = _phase / _periodTemp;
-            _pos = _pos > 0.5 ? (_pos - 1.0) * 6.28318531 : _pos * 6.28318531;
-            _sample = _pos < 0 ? 1.27323954 * _pos + .405284735 * _pos * _pos : 1.27323954 * _pos - 0.405284735 * _pos * _pos;
-            _sample = _sample < 0 ? .225 * (_sample *-_sample - _sample) + _sample : .225 * (_sample * _sample - _sample) + _sample;
-            break;
           case 3: // Noise
             _sample = _noiseBuffer[Math.abs(parseInt(_phase * 32 / parseInt(_periodTemp)))];
             break;
@@ -451,13 +398,6 @@ function SfxrSynth() {
           _hpFilterPos += _lpFilterPos - _lpFilterOldPos;
           _hpFilterPos *= 1.0 - _hpFilterCutoff;
           _sample = _hpFilterPos;
-        }
-        
-        // Applies the phaser effect
-        if (_phaser) {
-          _phaserBuffer[_phaserPos&1023] = _sample;
-          _sample += _phaserBuffer[(_phaserPos - _phaserInt + 1024) & 1023];
-          _phaserPos = (_phaserPos + 1) & 1023;
         }
         
         _superSample += _sample;
@@ -525,6 +465,6 @@ SfxrSynth.prototype.getWave = function(samples, length, channels) {
 }
 
 //Exports for Closure
-w['SfxrSynth'] = SfxrSynth; // <-- Constructor
+window['SfxrSynth'] = SfxrSynth; // <-- Constructor
 SfxrSynth.prototype['getWave'] = SfxrSynth.prototype.getWave;
 SfxrSynth.prototype['getSfx'] = SfxrSynth.prototype.getSfx;
