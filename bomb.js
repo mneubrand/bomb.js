@@ -488,9 +488,10 @@ var d = document;
     Sprite.call(this, x, y);
     this.draw = function() {
       if(this.clear) {
-        ctx.translate(this.clear[0]*40, this.clear[1]*40);
-        clear();
-        ctx.translate(-this.clear[0]*40, -this.clear[1]*40);
+        ctx.save();
+        ctx.translate(- (20 + this.x*40), - (40 + this.y*40));
+        clearField(this.x + this.clear[0], this.y + this.clear[1]);
+        ctx.restore();
       }
       if(lastUpdate - this.initialized > 750) { 
         //Remove sprite
@@ -1368,9 +1369,7 @@ var d = document;
 
   function spawnUpgrades(x, y) {
     var r = Math.random();
-    //TODO change to reasonable amount
-//    if(r < 0.2) {
-    if(r<1.0) {
+    if(r < 0.33) {
       r = Math.random();
       var upgrade;
       if(r < 0.16) {
@@ -1894,7 +1893,8 @@ var d = document;
     //Get context
     ctx = d.getElementById('c').getContext('2d');
 
-    //Surround with try/catch cause they won't work everywhere
+    //Surround with try/catch cause sounds won't work everywhere
+    //Opera: Though it seems that window.Blob exists calling it as a constructor throws an exception
     try {
       synth = new window['SfxrSynth']();
 
@@ -1904,9 +1904,8 @@ var d = document;
       var bufferLength = 44100 * 42 * 2;
       var soundURL = synth['getWave'](modPlayer.getSamples(bufferLength), bufferLength, 2);
       bgAudio = new Audio();
-      bgAudio.src = soundURL;
       bgAudio.loop = true;
-      bgAudio.play();
+      bgAudio.src = soundURL;
 
       //Initialize sounds
       movingSound = initializeSound('0,,0.0532,,0.1459,0.4123,,-0.6521,,,,,,0.3961,,,,,1,,,0.0584,,0.4');
@@ -1915,7 +1914,10 @@ var d = document;
       plantSound = initializeSound('0,,0.0589,,0.2623,0.269,,-0.3668,,,,,,0.5726,,,,,1,,,,,0.5');
       upgradeSound = initializeSound('0,,0.2524,,0.442,0.18,,0.4331,,,,,,0.2551,,0.5655,,,1,,,,,0.5');
       dieSound = initializeSound('0,,0.0119,,0.63,0.1,,0.1163,,,,,,0.1669,,0.7294,,,1,,,,,0.6');
+
+      bgAudio.play();
     } catch(e) {
+      console.log('Creating sound failed: ' + e.message);
       var dummy = { play : function() {}, pause: function() {} };
       movingSound = dummy;
       explosionSound = dummy;

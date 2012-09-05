@@ -444,7 +444,7 @@ SfxrSynth.prototype.getWave = function(samples, length, channels) {
     0x66,0x6d,0x74,0x20, // 'fmt '
     16,0,0,0,            // size of the following
     1, 0,                // PCM format
-    channels, 0,                // Mono: 1 channel
+    channels, 0,         // Mono: 1 channel or Stereo: 2 channels
     0x44,0xAC,0,0,       // 44,100 samples per second
     0x88,0x58,0x01,0,    // byte rate: two bytes per sample
     2, 0,                // aligned on every two bytes
