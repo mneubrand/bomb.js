@@ -446,8 +446,8 @@ SfxrSynth.prototype.getWave = function(samples, length, channels) {
     1, 0,                // PCM format
     channels, 0,         // Mono: 1 channel or Stereo: 2 channels
     0x44,0xAC,0,0,       // 44,100 samples per second
-    0x88,0x58,0x01,0,    // byte rate: two bytes per sample
-    2, 0,                // aligned on every two bytes
+    0,0,0,0,             // byte rate: two bytes per sample
+    2*channels, 0,       // aligned on every two bytes
     16, 0,               // 16 bits per sample
     0x64,0x61,0x74,0x61, // 'data'
     0, 0, 0, 0           // put number of samples here
@@ -456,6 +456,7 @@ SfxrSynth.prototype.getWave = function(samples, length, channels) {
   var soundLength = length * 2;
   var dv = new Uint32Array(header.buffer);
   dv[1] = 36 + soundLength;
+  dv[7] = 44100 * channels * 2;
   dv[10] = soundLength;
 
   var blob = new Blob([header.buffer, samples.subarray(0, length-1).buffer], { 'type' : 'audio/wav' });
