@@ -275,7 +275,13 @@ var d = document;
         ctx.font = 'bold 48pt Arial Black';
         ctx.textAlign = 'center';
         ctx.fillStyle = darkRed;
-        ctx.fillText('Player ' + (players[0]!=null && !players[0].dead ? '1' : '2') + ' won', 400, 340);        
+        var playerWon;
+        if(!players[0].dead || (players[0].dead > players[1].dead)) {
+          playerWon = '1';
+        } else {
+          playerWon = '2';
+        }
+        ctx.fillText('Player ' + playerWon + ' won', 400, 340);        
       }
     }
 
@@ -1558,6 +1564,7 @@ var d = document;
     }
 
     if(gameMode != Mode.MULTI_VERSUS) {
+      var ghosts = 0;
       //Spawn 13 enemies
       while(enemies.length < 13) {
         var i = parseInt(Math.random() * width);
@@ -1565,7 +1572,7 @@ var d = document;
         if(field[i][j] != null || isNearCorner(i, j)) {
           continue;
         }
-        if(Math.random() < 0.7) {
+        if(Math.random() < 0.7 || ghosts >= 3) {
           var golem = new Golem(i, j);
           enemies.push(golem);
           var golemField = new SpriteField(golem.x, golem.y, golem);
@@ -1573,6 +1580,7 @@ var d = document;
           golem.field = golemField;
         } else {
           var ghost = new Ghost(i, j);
+          ghosts++;
           enemies.push(ghost);
         }
       }
@@ -1952,7 +1960,7 @@ var d = document;
           return false;
       }
     };
-    d.onkeyup = keyListener;
+    d.onkeydown = keyListener;
 
     selectorBomb = new Sprite(7, 4);
     initMenu();
